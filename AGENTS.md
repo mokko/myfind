@@ -300,6 +300,13 @@ side is the reliable one for building "images of this object".
   to inconsistent index options=DOCS`. Deleting the field from the schema is not
   enough — the options live in the index segments. Delete the core, recreate it,
   reindex. At 11.5 minutes for the full corpus that is the cheap answer.
+- **A Solr field shared by two modules is declared once.** `title`, `org_unit`
+  and `object_ids` are each mapped in more than one module, so a naive
+  "one add-field per module field" posts the same name repeatedly. Identical
+  definitions collapse harmlessly; *conflicting* ones **raise**, because
+  otherwise whichever module happens to be iterated first silently decides the
+  type -- and a facet is quietly missing, or a sort 400s, with nothing to point
+  at. Same hazard as declaring one field from two code paths in one module.
 - **A backend error renders as 503, never a bare 500.** A 500 tells the user the
   application is broken; 503 with the backend's own message tells them search is
   down and the record data is fine. A portal that returns an empty result set on
