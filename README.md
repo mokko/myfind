@@ -181,6 +181,40 @@ target module was never ingested renders its label and is marked
 "not in this index" — it never 404s. That matters because **14 referenced modules
 are absent, including the owner on every single object.**
 
+## Reaching it from another machine
+
+Two independent facts, and only one of them is checkable from this host:
+
+1. **The app must bind an interface the network can route to.** The dev server
+   defaults to `127.0.0.1`, which is loopback-only. Set `MYFIND_HOST=0.0.0.0` to
+   listen on every interface.
+2. **The firewall must let the traffic in.** On this host `ufw` is active with
+   `DEFAULT_INPUT_POLICY="DROP"`, so an inbound connection to the port is dropped
+   unless a rule allows it — including from another device on the same LAN.
+
+`ss` showing `0.0.0.0:5000`, plus a successful `curl http://<lan-ip>:5000` **from
+the host itself**, proves fact 1 and *nothing* about fact 2: traffic from a host
+to its own LAN address is delivered over the loopback route, so it never crosses
+the external interface or the inbound firewall chain. A firewall dropping
+everything inbound is completely invisible to that test.
+
+```bash
+# fact 1 (done here)
+MYFIND_HOST=0.0.0.0 .venv/bin/python -m myfind.app
+
+# fact 2 (needs root; per-port ufw rules are not readable without it)
+sudo ufw allow 5000/tcp
+```
+
+The real test is a request **from another device**.
+
+**This is an unauthenticated portal.** Opening it to the LAN exposes every record
+and the JSON API to every device on the network — and the mapping carries
+internal fields (storage locations, organisational units, staff initials in
+`__lastModifiedUser`, vendor references) that are not in the published catalogue.
+Prefer a private path (the router's own VPN, or Tailscale) over a port opened to
+everything.
+
 ## Test
 
 ```bash
