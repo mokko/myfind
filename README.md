@@ -60,14 +60,14 @@ Installed at `<SOLR_HOME>`, running on **8983** (BaseX has 8080 and
 
 ```bash
 cd <SOLR_HOME>
-export SOLR_JAVA_MEM="-Xms1g -Xmx2g"
+export SOLR_JAVA_MEM="-Xms1g -Xmx1g"
 ./bin/solr start -p 8983
 ./bin/solr create -c myfind -n myfind        # real core, once the schema exists
 ```
 
 ### A full index, measured
 
-All three modules, on this box, with Solr at a 2 GB heap:
+All three modules, on this box, with Solr at a **1 GB heap**:
 
 | Module | Documents | Time |
 |---|---|---|
@@ -84,12 +84,39 @@ reasonable answer to a schema change** rather than something to schedule around.
 
 Two notes worth keeping:
 
-- **Put the heap in `bin/solr.in.sh`, not just the environment.** The 2 GB heap
-  above came from an exported variable, so a plain restart silently drops back to
-  the 512 MB default. Measured RSS at 2 GB max heap: ~1.3 GB.
+- **Put the heap in `bin/solr.in.sh`, not just the environment.** A heap set only
+  by an exported variable works until the first restart without it, after which
+  Solr silently reverts to the 512 MB default.
 - **The index should live on the NVMe.** `/mnt/nvme` has 862 GB free; the eMMC
   root has 31 GB. Needs one `sudo` line to create a writable directory — see
   *The box it runs on*.
+
+### Heap: measured, not guessed
+
+181,203 documents need far less than is usually assumed. Measured by restarting
+Solr at each size and replaying the same 240 faceted queries:
+
+| Heap (`-Xmx`) | Heap in use, idle | After 240 queries | Query rate | Median latency |
+|---|---|---|---|---|
+| 512 MB | 73 MB | 143 MB (28%) | 66 q/s | 14 ms |
+| 1 GB | 71 MB | 138 MB (13%) | 62 q/s | 14 ms |
+| 2 GB | 550 MB | 625 MB (31%) | 88 q/s | 9 ms |
+
+The index is **33 MB on disk**, and the live working set is roughly **70–140 MB**
+regardless of the ceiling — it does not grow with the heap. The 2 GB instance
+*used* more only because a larger heap means larger caches and lazier GC, not
+because it needed them. Both configurations answer the widest single query
+(five facets over all 47,853 objects) in tens of milliseconds.
+
+**1 GB is the setting here**: enough headroom for cache growth as fields are
+added, a full gigabyte less than 2 GB on a box where only ~5.5 GB is free.
+512 MB genuinely works today, but leaves little room for the index to grow.
+Revert with `SOLR_JAVA_MEM` in `bin/solr.in.sh` and a restart.
+
+Caveat: the widest-query timing is a single sample per size and is confounded by
+cache warmth — the 2 GB instance had been up for hours. Treat the working-set
+numbers as solid and the latency comparisons as indicative.
+
 
 ## The box it runs on
 
