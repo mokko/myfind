@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}{% for f in fields if f.field == 'title' %}{{ f.values[0] }}{% else %}{% endfor %} — {{ site.name }}{% endblock %}
+
+{% block content %}
+<p class="breadcrumb">
+  <a href="{{ url_for('home') }}">{{ site.name }}</a> ›
+  <a href="{{ url_for('entity_search', module_name=module.name) }}">{{ module.display_label() }}</a> ›
+  {{ record_id }}
+</p>
+
+<header class="record-head">
+  <p class="type">{{ module.display_label() }} · record {{ record_id }}</p>
+  {% set titles = fields | selectattr('field', 'equalto', 'title') | list %}
+  {% if titles and titles[0].values %}
+    <h1>{{ titles[0].values | join(' — ') }}</h1>
+  {% else %}
+    {# 611 objects have no title. Showing the object number beats showing nothing. #}
+    {% set nums = fields | selectattr('field', 'equalto', 'object_number') | list %}
+    <h1 class="muted">{{ nums[0].values[0] if nums else 'Untitled record' }}</h1>
+  {% endif %}
+  {% set subs = fields | selectattr('field', 'equalto', 'authorised_form') | list
+              + fields | selectattr('field', 'equalto', 'file') | list %}
+  {% if subs and subs[0].values %}
+    <p class="sub">{{ subs[0].values | join(' · ') }}</p>
+  {% endif %}
+</header>
+
+<div class="record-grid">
+  <div>
+    <dl class="meta">
+      {% for f in fields %}
+        {% if f.field != 'title' %}
+          <dt>{{ f.label }}</dt>
+          <dd>
+            {% for v in f.values %}
+              {% if v %}{{ v }}{% if not loop.last %}<br>{% endif %}{% endif %}
+            {% endfor %}
+          </dd>
+        {% endif %}
+      {% endfor %}
+    </dl>
+
+    <details class="raw">
+      <summary>Source XML (from BaseX)</summary>
+      <pre>{{ item_xml }}</pre>
+    </details>
+  </div>
+
+  <aside>
+    {% for group in link_groups %}
+      <div class="panel">
+        <h2>{{ group.label }}</h2>
+        <ul>
+          {% for link in group.links %}
+            <li>
+              {% if link.present %}
+                <a href="{{ url_for('record', module_name=group.target.name, record_id=link.id) }}">{{ link.label }}</a>
+              {% else %}
+                {# 14 modules are referenced but were never ingested -- including
+                   the owner on every single object. The label is present even
+                   when the target is not, so it is shown and marked. #}
+                <span class="missing">
+                  {{ link.label }}
+                  <span class="badge">{{ group.target.display_label() }} not in this index</span>
+                </span>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endfor %}
+
+    <div class="panel">
+      <h2>Elsewhere</h2>
+      <ul>
+        <li><a href="{{ url_for('api_search', module_name=module.name) }}?q={{ record_id }}">This record in the JSON API</a></li>
+        <li><a href="{{ url_for('entity_search', module_name=module.name) }}">Browse all {{ module.plural_label() }}</a></li>
+      </ul>
+    </div>
+  </aside>
+</div>
+{% endblock %}

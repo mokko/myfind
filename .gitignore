@@ -1,0 +1,18 @@
+# Local secrets: the BaseX password lives here, never in the tracked TOML.
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Index run state
+data/
+tools/inventory.xml
+tools/field_inventory.err
+
+# Scratch
+*.log

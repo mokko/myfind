@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ site.name }}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="{{ url_for('home') }}">
+      <span class="brand-name">{{ site.name }}</span>
+      {% if site.subtitle %}<span class="brand-sub">{{ site.subtitle }}</span>{% endif %}
+    </a>
+    <form class="global-search" action="{{ url_for('global_search') }}" method="get" role="search">
+      <input type="search" name="q" value="{{ request.args.get('q', '') }}"
+             placeholder="Search objects, persons and assets" aria-label="Search everything">
+      <button type="submit">Search</button>
+    </form>
+  </div>
+  <nav class="entity-nav">
+    <div class="wrap">
+      {% for m in modules %}
+        <a href="{{ url_for('entity_search', module_name=m.name) }}"
+           class="{% if module is defined and module and module.name == m.name %}active{% endif %}">
+          {{ m.display_label() }}
+        </a>
+      {% endfor %}
+      <a href="{{ url_for('healthz') }}" class="right">Status</a>
+    </div>
+  </nav>
+</header>
+
+<main class="wrap">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>
+      {{ site.name }} — records from BaseX, search from Solr.
+      <span class="muted">A reduced discovery layer in the spirit of VuFind and Blacklight.</span>
+    </p>
+  </div>
+</footer>
+</body>
+</html>

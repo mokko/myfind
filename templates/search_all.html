@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Search{% if q %} — {{ q }}{% endif %} — {{ site.name }}{% endblock %}
+
+{% block content %}
+<div class="result-header">
+  <h1>Everything</h1>
+  <span class="result-count">{{ "{:,}".format(response.numFound) }} records{% if q %} for <strong>{{ q }}</strong>{% endif %}</span>
+</div>
+
+{% if response.docs %}
+  {% set labels = {} %}
+  {% for m in modules %}{% set _ = labels.update({m.name: m}) %}{% endfor %}
+  <ul class="results">
+    {% for doc in response.docs %}
+      {% set m = labels.get(doc.module) %}
+      <li class="result">
+        <p class="muted" style="margin:0 0 4px; font-size:12px; text-transform:uppercase; letter-spacing:.05em;">
+          {{ m.display_label() if m else doc.module }}
+        </p>
+        <h3>
+          <a href="{{ url_for('record', module_name=doc.module, record_id=doc.record_id) }}">
+            {% set t = doc.get('title') %}
+            {% if t is sequence and t is not string %}{{ t[0] }}{% else %}{{ t or doc.record_id }}{% endif %}
+          </a>
+        </h3>
+        <div class="result-row">
+          {% for field in ['object_number', 'maker', 'object_type', 'date_display', 'authorised_form', 'file'] %}
+            {% set v = doc.get(field) %}
+            {% if v %}
+              <div><dt>{{ field.replace('_', ' ') }}</dt>
+                <dd>{% if v is sequence and v is not string %}{{ v[0] }}{% else %}{{ v }}{% endif %}</dd></div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <div class="no-results">
+    <h3>Nothing matched{% if q %} “{{ q }}”{% endif %}.</h3>
+    <ul>
+      <li>Check the spelling, or try fewer words.</li>
+      {% for m in modules %}
+        <li>Search <a href="{{ url_for('entity_search', module_name=m.name, q=q) }}">{{ m.plural_label() }}</a> only.</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+{% endblock %}

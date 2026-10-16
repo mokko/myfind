@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ site.name }} — {{ site.subtitle }}{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1>{{ site.subtitle or site.name }}</h1>
+  <form class="hero-search" action="{{ url_for('global_search') }}" method="get" role="search">
+    <input type="search" name="q" value="{{ q }}" autofocus
+           placeholder="Search across everything…" aria-label="Search everything">
+    <button type="submit">Search</button>
+  </form>
+  <p class="muted">One box over {{ modules | length }} entities. Or browse one:</p>
+</section>
+
+<section class="entities">
+  {% for m in modules %}
+    <a class="entity-card" href="{{ url_for('entity_search', module_name=m.name) }}">
+      <h2>{{ m.display_label() }}</h2>
+      <p class="count">{{ "{:,}".format(counts.get(m.name, 0)) }} records</p>
+      <p class="hint">
+        {%- for spec in m.facet_fields()[:4] -%}
+          {% if not loop.first %} · {% endif %}{{ spec.field.replace('_', ' ') }}
+        {%- endfor -%}
+      </p>
+    </a>
+  {% endfor %}
+</section>
+{% endblock %}

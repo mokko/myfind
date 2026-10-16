@@ -1,0 +1,261 @@
+# myfind configuration.
+#
+# The mapping is DATA, not code: a field is an XPath plus the roles it plays.
+# Changing what is faceted is an edit here and a reindex, never a code change.
+#
+# Coverage figures in the comments are measured over the real store
+# (`tools/inventory.xml`, and the non-empty counts in AGENTS.md). A field listed
+# here because a name looked plausible is how a facet ends up permanently empty.
+
+[site]
+name = "myfind"
+subtitle = "Museum collection discovery"
+# Results per page on the search page.
+pageSize = 20
+
+[basex]
+url = "http://localhost:8080/rest"
+user = "oai"
+# DEV PLACEHOLDER so a fresh checkout runs. The real value comes from the
+# MYFIND_BASEX_PASSWORD environment variable, or `.env` beside this file.
+password = "devpass"
+timeout = 300
+# Source timestamps are local wall clock, space-separated, no zone
+# ("2026-08-24 07:11:33.54"). They must be SHIFTED to UTC, not merely labelled
+# "Z", or date sorting is silently wrong by the offset.
+timezoneOffset = "+02:00"
+
+[solr]
+url = "http://localhost:8983/solr/myfind"
+
+[index]
+# Documents per BaseX round trip. The whole collection is never requested at
+# once: sync_Object alone serialises to 2.19 GB and the server would hold it.
+batch = 250
+receipt = "data/index-receipt.json"
+
+# ---------------------------------------------------------------------------
+# Object
+# ---------------------------------------------------------------------------
+[[modules]]
+name = "Object"
+label = "Objects"
+plural = "objects"
+database = "sync_Object"
+# Routes: /Object/  (search), /Object/447469  (record)
+route = "record"
+# Columns shown in the results list, in order.
+resultFields = ["title", "object_number", "maker", "object_type", "date_display"]
+
+# A field is picked up from any of these element kinds, addressed by @name.
+# `roles` decides what the value is used for:
+#   search  - copied into the catch-all searchable text and searched fielded
+#   facet   - exposed as a facet
+#   display - rendered on the record page
+#   sort    - usable as a sort key
+[[modules.fields]]
+field = "title"
+kind = "virtualField"
+name = "ObjObjectTitleVrt"
+roles = ["search", "display"]
+# present 47853 / non-empty 47242 -- 611 objects have no title (AGENTS.md)
+
+[[modules.fields]]
+field = "object_number"
+kind = "dataField"
+name = "ObjObjectNumberTxt"
+roles = ["search", "facet", "display"]
+
+[[modules.fields]]
+field = "object_number_sort"
+kind = "dataField"
+name = "ObjObjectNumberSortedTxt"
+roles = ["sort"]
+# "KdZ 005653" -- zero-padded so a lexical sort is the intended order
+
+[[modules.fields]]
+field = "object_type"
+kind = "dataField"
+name = "ObjTechnicalTermClb"
+roles = ["search", "facet", "display"]
+
+[[modules.fields]]
+field = "date_display"
+kind = "virtualField"
+name = "ObjDateVrt"
+roles = ["search", "display"]
+# FREE TEXT, not a date: "um 1715/16". Never feed this to a range facet.
+
+[[modules.fields]]
+field = "material_technique"
+kind = "virtualField"
+name = "ObjMaterialTechniqueVrt"
+roles = ["search", "display"]
+
+# Computed by MuseumPlus, so no string parsing is needed for the maker.
+# "Watteau, Antoine Jean" -- inverted, role-free. (ObjPerAssociationSurnameVrt
+# and ...GenderVrt are empty in the real data; do not use them.)
+[[modules.fields]]
+field = "maker"
+kind = "virtualField"
+name = "ObjPerAssociationMainParticipantNameVrt"
+roles = ["search", "facet", "display"]
+
+[[modules.fields]]
+field = "maker_display"
+kind = "virtualField"
+name = "ObjPerAssociationMainParticipantVrt"
+roles = ["display"]
+# "Jean Antoine Watteau (1684-1721)" -- natural form with dates
+
+[[modules.fields]]
+field = "location"
+kind = "vocabularyReference"
+name = "ObjNormalLocationVoc"
+roles = ["facet", "display"]
+
+[[modules.fields]]
+field = "collection_group"
+kind = "vocabularyReference"
+name = "ObjOrgGroupVoc"
+roles = ["facet", "display"]
+# "KK-Fran/Span/Eng Zeichnung"
+
+[[modules.fields]]
+field = "org_unit"
+kind = "systemField"
+name = "__orgUnit"
+roles = ["facet"]
+# "KKZusatzmagazin" -- internal storage unit, useful as a facet for staff
+
+[[modules.fields]]
+field = "last_modified"
+kind = "systemField"
+name = "__lastModified"
+roles = ["sort", "display"]
+# normalized to UTC by the indexer; sorting depends on that being uniform
+
+# Links. `target` names the module whose documents these ids resolve to, so a
+# linked-record page becomes a document-name lookup rather than a search.
+[[modules.links]]
+field = "maker_ids"
+reference = "ObjPerAssociationRef"
+target = "Person"
+# 47853 objects carry at least one -- every object links to a maker association
+
+[[modules.links]]
+field = "asset_ids"
+reference = "ObjMultimediaRef"
+target = "Multimedia"
+# 43983 objects -- but the Multimedia side (MulObjectRef, 127551) is populated
+# for every asset, so "images of this object" is built from the asset side.
+
+# ---------------------------------------------------------------------------
+# Person
+# ---------------------------------------------------------------------------
+[[modules]]
+name = "Person"
+label = "Persons"
+plural = "persons"
+database = "sync_Person"
+route = "record"
+resultFields = ["title", "authorised_form", "person_type"]
+
+[[modules.fields]]
+field = "title"
+kind = "dataField"
+name = "PerNameTxt"
+roles = ["search", "display"]
+# 5799/5799 -- the display name
+
+[[modules.fields]]
+field = "authorised_form"
+kind = "dataField"
+name = "PerNennformTxt"
+roles = ["search", "display"]
+# "Nennform" -- the authorised/preferred form, 5798
+
+[[modules.fields]]
+field = "person_type"
+kind = "vocabularyReference"
+name = "PerTypeVoc"
+roles = ["facet", "display"]
+
+[[modules.fields]]
+field = "org_unit"
+kind = "systemField"
+name = "__orgUnit"
+roles = ["facet"]
+
+[[modules.fields]]
+field = "last_modified"
+kind = "systemField"
+name = "__lastModified"
+roles = ["sort", "display"]
+
+[[modules.links]]
+field = "object_ids"
+reference = "PerObjectRef"
+target = "Object"
+# 5453 of 5799 persons (94%)
+
+# ---------------------------------------------------------------------------
+# Multimedia
+# ---------------------------------------------------------------------------
+[[modules]]
+name = "Multimedia"
+# The museum calls these assets; the MuseumPlus module is "Multimedia".
+label = "Assets"
+plural = "assets"
+database = "sync_Multimedia"
+route = "record"
+resultFields = ["file", "asset_type", "file_size"]
+
+[[modules.fields]]
+field = "asset_type"
+kind = "vocabularyReference"
+name = "MulTypeVoc"
+roles = ["facet", "display"]
+
+[[modules.fields]]
+field = "file"
+kind = "dataField"
+name = "MulOriginalFileTxt"
+roles = ["display"]
+# 96.3% -- the original filename/path
+
+[[modules.fields]]
+field = "file_size"
+kind = "dataField"
+name = "MulSizeTxt"
+roles = ["display"]
+
+[[modules.fields]]
+field = "has_thumbnail"
+kind = "dataField"
+name = "ThumbnailBoo"
+roles = ["display"]
+
+[[modules.fields]]
+field = "org_unit"
+kind = "systemField"
+name = "__orgUnit"
+roles = ["facet"]
+
+[[modules.fields]]
+field = "last_modified"
+kind = "systemField"
+name = "__lastModified"
+roles = ["sort", "display"]
+
+[[modules.links]]
+field = "object_ids"
+reference = "MulObjectRef"
+target = "Object"
+# 127551/127551 -- every asset links to its object
+
+[[modules.links]]
+field = "photographer_ids"
+reference = "MulPhotographerPerRef"
+target = "Person"
+# 97309

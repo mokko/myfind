@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}{{ module.display_label() }} — {{ site.name }}{% endblock %}
+
+{% macro first(doc, field) -%}
+  {%- set v = doc.get(field) -%}
+  {%- if v is sequence and v is not string -%}{{ v[0] if v else '' }}{%- else -%}{{ v or '' }}{%- endif -%}
+{%- endmacro %}
+
+{# An object with no title is real: 611 of 47,853 titles are empty. Falling back
+   to the object number is the honest display, not a blank row. #}
+{% macro heading(doc) -%}
+  {%- set t = first(doc, 'title') -%}
+  {%- if t -%}{{ t }}
+  {%- else -%}<span class="muted">{{ first(doc, 'object_number') or first(doc, 'file') or doc.id }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+<div class="search-layout">
+  <aside class="facets">
+    {% for spec in module.facet_fields() %}
+      {% set values = facets.get(spec.field ~ '_facet', []) %}
+      <div class="facet">
+        <h3>{{ spec.field.replace('_', ' ') }}</h3>
+        {% if values %}
+          <ul>
+            {% for i in range(0, values | length, 2) %}
+              {% set value = values[i] %}
+              {% set count = values[i + 1] %}
+              <li class="{% if is_selected(spec.field, value) %}selected{% endif %}">
+                <a href="{% if is_selected(spec.field, value) %}{{ facet_remove_url(spec.field, value) }}{% else %}{{ facet_add_url(spec.field, value) }}{% endif %}">
+                  {{ value }}
+                </a>
+                <span class="n">{{ count }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+          {% if selected | selectattr('0', 'equalto', spec.field) | list %}
+            <a class="clear" href="{{ facet_clear_url(spec.field) }}">clear</a>
+          {% endif %}
+        {% else %}
+          <p class="facet-empty">no values</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </aside>
+
+  <div>
+    <form class="entity-search-form" action="{{ url_for('entity_search', module_name=module.name) }}" method="get" role="search">
+      <input type="search" name="q" value="{{ q }}" placeholder="Search {{ module.plural_label() }}…" aria-label="Search {{ module.plural_label() }}">
+      <button type="submit">Search</button>
+    </form>
+
+    {% if selected %}
+      <div class="applied">
+        <span class="muted">Filtered by:</span>
+        {% for field, value in selected %}
+          <a class="chip" href="{{ facet_remove_url(field, value) }}">{{ value }} <span aria-hidden="true">×</span></a>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="result-header">
+      <h1>{{ module.display_label() }}</h1>
+      <span class="result-count">
+        {{ "{:,}".format(response.numFound) }}
+        {{ 'record' if response.numFound == 1 else 'records' }}
+        {% if q %} for <strong>{{ q }}</strong>{% endif %}
+      </span>
+      <form method="get" action="{{ url_for('entity_search', module_name=module.name) }}">
+        {% for field, value in selected %}<input type="hidden" name="{{ field }}" value="{{ value }}">{% endfor %}
+        <input type="hidden" name="q" value="{{ q }}">
+        <select name="sort" onchange="this.form.submit()" aria-label="Sort">
+          <option value="">Relevance</option>
+          <option value="last_modified" {% if request.args.get('sort') == 'last_modified' %}selected{% endif %}>Recently modified</option>
+          <option value="-last_modified" {% if request.args.get('sort') == '-last_modified' %}selected{% endif %}>Oldest first</option>
+          {% if module.name == 'Object' %}
+            <option value="object_number_sort" {% if request.args.get('sort') == 'object_number_sort' %}selected{% endif %}>Object number</option>
+          {% endif %}
+        </select>
+      </form>
+    </div>
+
+    {% if response.docs %}
+      <ul class="results">
+        {% for doc in response.docs %}
+          <li class="result">
+            <h3><a href="{{ url_for('record', module_name=module.name, record_id=doc.record_id) }}">{{ heading(doc) }}</a></h3>
+            <div class="result-row">
+              {% for field in module.result_fields %}
+                {% set value = first(doc, field) %}
+                {% if value %}
+                  <div><dt>{{ field.replace('_', ' ') }}</dt><dd>{{ value }}</dd></div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+
+      {% if pages > 1 %}
+        <nav class="pager">
+          {% set args = request.args.to_dict(flat=False) %}
+          {% if page > 1 %}
+            <a href="?{% for k, vs in args.items() if k != 'page' %}{% for v in vs %}{{ k }}={{ v | urlencode }}&{% endfor %}{% endfor %}page={{ page - 1 }}">Previous</a>
+          {% else %}<span class="disabled">Previous</span>{% endif %}
+          <span class="current">Page {{ page }} of {{ pages }}</span>
+          {% if page < pages %}
+            <a href="?{% for k, vs in args.items() if k != 'page' %}{% for v in vs %}{{ k }}={{ v | urlencode }}&{% endfor %}{% endfor %}page={{ page + 1 }}">Next</a>
+          {% else %}<span class="disabled">Next</span>{% endif %}
+        </nav>
+      {% endif %}
+    {% else %}
+      <div class="no-results">
+        <h3>No {{ module.plural_label() }} matched{% if q %} “{{ q }}”{% endif %}.</h3>
+        <ul>
+          {% if selected %}<li>Try removing a filter — you have {{ selected | length }} applied.</li>{% endif %}
+          <li>Check the spelling, or try fewer words.</li>
+          <li>Search <a href="{{ url_for('global_search', q=q) }}">everything</a> instead of just {{ module.plural_label() }}.</li>
+        </ul>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
