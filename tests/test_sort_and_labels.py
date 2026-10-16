@@ -76,3 +76,31 @@ def test_link_fields_are_labelled_plural():
 
 def test_an_unmapped_field_falls_back_to_title_case():
     assert label_for("some_new_field") == "Some new field"
+
+
+# -- headings --------------------------------------------------------------
+
+
+def test_each_entity_declares_the_field_that_titles_its_records(config):
+    """An Asset has no title, so a hardcoded title->object_number chain
+    rendered every asset as "Untitled record" while its file name was visible
+    directly underneath."""
+    assert config.module("Object").heading == "title"
+    assert config.module("Person").heading == "title"
+    assert config.module("Multimedia").heading == "file"
+
+
+def test_the_heading_field_is_mapped_and_displayable(config):
+    """A heading naming a field the mapping never reads would render blank."""
+    for module in config.modules:
+        mapped = {spec.field for spec in module.fields}
+        assert module.heading in mapped, f"{module.name}: no field {module.heading!r}"
+        assert module.heading in {
+            spec.field for spec in module.display_fields()
+        }, f"{module.name}: {module.heading!r} is not a display field"
+
+
+def test_the_heading_is_not_repeated_as_a_result_column(config):
+    """Both would render the same value twice in one row."""
+    for module in config.modules:
+        assert module.heading not in module.result_fields, module.name

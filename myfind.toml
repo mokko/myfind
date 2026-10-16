@@ -215,7 +215,9 @@ label = "Assets"
 plural = "assets"
 database = "sync_Multimedia"
 route = "record"
-# The file name is the heading for an asset, so it is not repeated here.
+# An asset has no title; its file name is what identifies it. The file name IS
+# the heading, so it is not repeated as a column.
+heading = "file"
 resultFields = ["asset_type", "file_size"]
 
 [[modules.fields]]

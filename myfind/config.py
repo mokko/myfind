@@ -46,6 +46,12 @@ class Module:
     plural: str = ""
     # Columns for the results list, in order.
     result_fields: tuple[str, ...] = ()
+    # The field whose value is the record's own title in a results list and at
+    # the top of a record page. Declared per entity because it differs: an
+    # Object is titled, an Asset is identified by its file, and hardcoding a
+    # title->object_number chain rendered every asset as "Untitled record"
+    # while its file name sat visibly underneath.
+    heading: str = "title"
 
     def display_label(self) -> str:
         return self.label or self.name
@@ -195,6 +201,7 @@ def load(path: str | os.PathLike[str] = DEFAULT_CONFIG) -> Config:
                 label=m.get("label", ""),
                 plural=m.get("plural", ""),
                 result_fields=tuple(m.get("resultFields", ())),
+                heading=m.get("heading", "title"),
             )
         )
 

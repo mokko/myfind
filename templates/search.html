@@ -7,9 +7,11 @@
 {%- endmacro %}
 
 {# An object with no title is real: 611 of 47,853 titles are empty. Falling back
-   to the object number is the honest display, not a blank row. #}
-{% macro heading(doc) -%}
-  {%- set t = first(doc, 'title') -%}
+   to the object number is the honest display, not a blank row. The entity
+   declares which field titles its records (`module.heading`), because an Asset
+   is identified by its file and has no title at all. #}
+{% macro heading(doc, module) -%}
+  {%- set t = first(doc, module.heading) -%}
   {%- if t -%}{{ t }}
   {%- else -%}<span class="muted">{{ first(doc, 'object_number') or first(doc, 'file') or doc.id }}</span>
   {%- endif -%}
@@ -85,7 +87,7 @@
       <ul class="results">
         {% for doc in response.docs %}
           <li class="result">
-            <h3><a href="{{ url_for('record', module_name=module.name, record_id=doc.record_id) }}">{{ heading(doc) }}</a></h3>
+            <h3><a href="{{ url_for('record', module_name=module.name, record_id=doc.record_id) }}">{{ heading(doc, module) }}</a></h3>
             <div class="result-row">
               {% for field in module.result_fields %}
                 {% set value = first(doc, field) %}

@@ -10,16 +10,23 @@
 
 <header class="record-head">
   <p class="type">{{ module.display_label() }} · record {{ record_id }}</p>
-  {% set titles = fields | selectattr('field', 'equalto', 'title') | list %}
-  {% if titles and titles[0].values %}
-    <h1>{{ titles[0].values | join(' — ') }}</h1>
+  {# The entity declares which field titles its records, then a fallback chain,
+     then the record id. Showing an identifier beats showing "Untitled". #}
+  {% set primary = fields | selectattr('field', 'equalto', module.heading) | list %}
+  {% set fallback = fields | selectattr('field', 'equalto', 'object_number') | list
+                  + fields | selectattr('field', 'equalto', 'file') | list %}
+  {% if primary and primary[0].values %}
+    <h1>{{ primary[0].values | join(' — ') }}</h1>
+  {% elif fallback and fallback[0].values %}
+    {# 611 objects have no title, so the object number is the honest heading. #}
+    <h1 class="muted">{{ fallback[0].values | join(' — ') }}</h1>
   {% else %}
-    {# 611 objects have no title. Showing the object number beats showing nothing. #}
-    {% set nums = fields | selectattr('field', 'equalto', 'object_number') | list %}
-    <h1 class="muted">{{ nums[0].values[0] if nums else 'Untitled record' }}</h1>
+    <h1 class="muted">{{ module.display_label() }} {{ record_id }}</h1>
   {% endif %}
+  {# Only the authorised form, and only when it is not already the heading:
+     repeating the heading as its own subtitle reads as a mistake. #}
   {% set subs = fields | selectattr('field', 'equalto', 'authorised_form') | list
-              + fields | selectattr('field', 'equalto', 'file') | list %}
+                if module.heading != 'authorised_form' else [] %}
   {% if subs and subs[0].values %}
     <p class="sub">{{ subs[0].values | join(' · ') }}</p>
   {% endif %}
