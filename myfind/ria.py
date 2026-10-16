@@ -64,6 +64,44 @@ def _text_of(element: ET.Element | None) -> str:
     return (element.text or "").strip()
 
 
+# Two rules govern how a record's own values are found, and both are load-bearing.
+#
+# **1. Search at ANY depth, not just direct children.** The export nests
+# arbitrarily. In the Multimedia module a link lives at
+#     moduleItem > composite[@name='MulReferencesCre'] > compositeItem > moduleReference
+# so a direct-child search finds NO links at all and every asset renders with no
+# owning object and no photographer -- silently, because zero links is a valid
+# answer. Object happens to keep its references as direct children, which is what
+# makes the bug look module-specific rather than systemic.
+#
+# **2. Exclude anything inside a moduleReference.** A reference item carries its
+# own fields: every moduleReferenceItem has a `SortLnu`, and association items
+# carry `RoleVoc`/`AttributionVoc` vocabularies. Reading those would fold a
+# referenced record's data into this one.
+#
+# The exclusion is done in Python rather than in the XPath, because ElementTree
+# supports only a subset of XPath -- `[not(ancestor::moduleReference)]` raises
+# SyntaxError. It has no parent pointers either, so the set of enclosed elements
+# is collected once by walking each reference downwards.
+def _enclosed_in_reference(item: ET.Element) -> set[int]:
+    """Identity set of every element that sits inside a moduleReference."""
+    enclosed: set[int] = set()
+    for ref in item.iter("moduleReference"):
+        for node in ref.iter():
+            enclosed.add(id(node))
+    return enclosed
+
+
+def _own_elements(item: ET.Element, kind: str, name: str) -> list[ET.Element]:
+    """Descendants of `kind` with @name, excluding a reference's own contents."""
+    enclosed = _enclosed_in_reference(item)
+    return [
+        el
+        for el in item.iter(kind)
+        if el.get("name") == name and id(el) not in enclosed
+    ]
+
+
 def extract_values(item: ET.Element, spec: FieldSpec) -> list[str]:
     """Every non-empty value of one field on one record, in document order.
 
@@ -71,15 +109,12 @@ def extract_values(item: ET.Element, spec: FieldSpec) -> list[str]:
     this always returns a list; the caller decides whether to join or facet.
     """
     if spec.kind in _VALUE_KINDS:
-        raw = [
-            _text_of(el.find("value"))
-            for el in item.findall(f"{spec.kind}[@name='{spec.name}']")
-        ]
+        raw = [_text_of(el.find("value")) for el in _own_elements(item, spec.kind, spec.name)]
     elif spec.kind == "vocabularyReference":
         # The item's @name is the clean value; formattedValue is the display
         # string and is what to fall back to when @name is absent.
         raw = []
-        for ref in item.findall(f"vocabularyReference[@name='{spec.name}']"):
+        for ref in _own_elements(item, "vocabularyReference", spec.name):
             for vi in ref.findall("vocabularyReferenceItem"):
                 value = vi.get("name") or _text_of(vi.find("formattedValue"))
                 raw.append(value)
@@ -107,7 +142,12 @@ def extract_links(item: ET.Element, spec: LinkSpec) -> list[dict[str, str]]:
     """
     out: list[dict[str, str]] = []
     seen: set[str] = set()
-    for ref in item.findall(f"moduleReference[@name='{spec.reference}']"):
+    # Any depth, not direct children: an asset's MulObjectRef sits two levels
+    # down inside a composite, and a direct-child search silently yields zero
+    # links for that whole module. See _own_elements.
+    for ref in item.iter("moduleReference"):
+        if ref.get("name") != spec.reference:
+            continue
         for ri in ref.findall("moduleReferenceItem"):
             target_id = ri.get("moduleItemId")
             if not target_id or target_id in seen:

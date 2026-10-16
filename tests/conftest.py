@@ -83,9 +83,53 @@ UNTITLED_OBJECT = """\
 """
 
 
+# Real Multimedia record, trimmed. The important part is the SHAPE: its only
+# cross-module link is nested at
+#   moduleItem > composite[@name=MulReferencesCre] > compositeItem > moduleReference
+# whereas Object keeps its references as direct children of moduleItem. A
+# direct-child search therefore finds links for Objects and none for Assets.
+REAL_MULTIMEDIA = """\
+<application><modules><module name="Multimedia" totalSize="4232">
+  <moduleItem hasAttachments="true" id="268711">
+    <systemField dataType="Varchar" name="__orgUnit"><value>KKDeutscheDruckgraphik16Jh</value></systemField>
+    <systemField dataType="Timestamp" name="__lastModified">
+      <value>2025-05-14 08:48:31.599</value>
+    </systemField>
+    <dataField dataType="Varchar" name="MulOriginalFileTxt"><value>20001815-p.jpg</value></dataField>
+    <dataField dataType="Varchar" name="MulSizeTxt"><value>1.99 MB</value></dataField>
+    <vocabularyReference name="MulTypeVoc" id="1">
+      <vocabularyReferenceItem id="2" name="image">
+        <formattedValue language="de">image</formattedValue>
+      </vocabularyReferenceItem>
+    </vocabularyReference>
+    <composite name="MulReferencesCre">
+      <compositeItem>
+        <moduleReference name="MulObjectRef" targetModule="Object" multiplicity="M:N" size="1">
+          <moduleReferenceItem moduleItemId="449615" seqNo="0">
+            <formattedValue language="de">KdZ 5653</formattedValue>
+            <dataField dataType="Long" name="SortLnu"><value>5</value></dataField>
+            <vocabularyReference name="RoleVoc" id="3">
+              <vocabularyReferenceItem id="4" name="Fotograf">
+                <formattedValue language="de">Fotograf*in</formattedValue>
+              </vocabularyReferenceItem>
+            </vocabularyReference>
+          </moduleReferenceItem>
+        </moduleReference>
+      </compositeItem>
+    </composite>
+  </moduleItem>
+</module></modules></application>
+"""
+
+
 @pytest.fixture
 def object_record() -> ET.Element:
     return ET.fromstring(REAL_OBJECT)
+
+
+@pytest.fixture
+def multimedia_record() -> ET.Element:
+    return ET.fromstring(REAL_MULTIMEDIA)
 
 
 @pytest.fixture

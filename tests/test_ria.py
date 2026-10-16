@@ -89,6 +89,42 @@ def test_multiple_links_keep_document_order(object_record):
     assert [l["id"] for l in links] == ["636116", "4014992", "5179622"]
 
 
+def test_a_link_nested_inside_a_composite_is_still_found(multimedia_record):
+    """The bug that made every asset linkless.
+
+    An asset's only link to its object lives at
+    moduleItem > composite > compositeItem > moduleReference, so a direct-child
+    search returns zero links -- silently, because zero is a valid answer. Objects
+    keep references as direct children, which is why only Assets broke.
+    """
+    item = ria.item_of(multimedia_record)
+    links = ria.extract_links(item, LinkSpec("object_ids", "MulObjectRef", "Object"))
+    assert [l["id"] for l in links] == ["449615"]
+    assert links[0]["label"] == "KdZ 5653"
+
+
+def test_a_field_inside_a_reference_is_not_the_records_own_value(multimedia_record):
+    """A reference item carries its own fields and vocabularies.
+
+    Every moduleReferenceItem has a `SortLnu`, and association items carry
+    `RoleVoc`. Those belong to the referenced record, not this one, so they must
+    not be read as the record's own values.
+    """
+    item = ria.item_of(multimedia_record)
+    assert ria.extract_values(item, FieldSpec("sort", "dataField", "SortLnu")) == []
+    assert ria.extract_values(item, FieldSpec("role", "vocabularyReference", "RoleVoc")) == []
+
+
+def test_the_records_own_fields_are_read_alongside_a_nested_link(multimedia_record):
+    item = ria.item_of(multimedia_record)
+    assert ria.extract_values(
+        item, FieldSpec("file", "dataField", "MulOriginalFileTxt")
+    ) == ["20001815-p.jpg"]
+    assert ria.extract_values(
+        item, FieldSpec("asset_type", "vocabularyReference", "MulTypeVoc")
+    ) == ["image"]
+
+
 def test_link_labels_are_empty_when_the_reference_item_is_bare(object_record):
     item = _item(object_record)
     links = ria.extract_links(item, LinkSpec("asset_ids", "ObjMultimediaRef", "Multimedia"))
