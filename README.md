@@ -330,5 +330,9 @@ MIT — see `LICENSE`.
 
 - `AGENTS.md` — internals: code map, the link map, measured costs, the mapping,
   and the indexing plan.
-- `the sibling OAI-PMH provider project` — the sibling project; same store, same REST client shape,
-  and the place the BaseX conventions in this repo came from.
+- `comparison.md` — how this compares with VuFind and Blacklight: feature matrix,
+  what is deliberately different, and what it would take to be a real discovery
+  layer.
+- `deploy/README.md` — serving it under systemd and nginx.
+- The sibling OAI-PMH provider project — same store, same REST client shape, and
+  the place the BaseX conventions in this repo came from.

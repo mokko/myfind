@@ -1,0 +1,40 @@
+[Unit]
+Description=Apache Solr (myfind search index)
+Documentation=https://solr.apache.org/guide/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=maurice
+Group=maurice
+WorkingDirectory=/home/maurice/solr/solr-9.11.0
+
+# `start -f` runs Solr in the FOREGROUND. Plain `solr start` daemonises and
+# exits, which under Type=simple makes systemd think the service died instantly
+# and restart it in a loop.
+#
+# The heap lives in bin/solr.in.sh (SOLR_JAVA_MEM), not in an Environment= line
+# here: an exported variable works until the first restart without it, after
+# which Solr silently reverts to the 512m default.
+ExecStart=/home/maurice/solr/solr-9.11.0/bin/solr start -f -p 8983
+
+# Solr flushes on SIGTERM; give it time to commit and close the index.
+KillSignal=SIGTERM
+TimeoutStopSec=120
+
+Restart=on-failure
+RestartSec=10
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+
+# -Xmx2g in solr.in.sh, plus JVM overhead and off-heap. Measured RSS at a 2 GB
+# ceiling is ~1.25 GB; the index itself is only 33 MB on disk.
+MemoryMax=3G
+
+[Install]
+WantedBy=multi-user.target

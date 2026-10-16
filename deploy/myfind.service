@@ -1,0 +1,56 @@
+[Unit]
+Description=myfind discovery portal (gunicorn)
+Documentation=https://github.com/mokko/myfind
+After=network-online.target
+Wants=network-online.target
+# Ordering only, deliberately not Requires=: if BaseX or Solr is slow to come up
+# the app must still start and answer 503, which is the designed behaviour.
+# Requires= would take the portal down whenever a backend is being restarted.
+After=basex.service solr.service
+
+[Service]
+Type=simple
+User=maurice
+Group=maurice
+WorkingDirectory=/home/maurice/py/myfind
+
+# The BaseX password is read from ./.env beside myfind.toml (mode 600), which the
+# app already does. A root-owned central file works too -- uncomment and create
+# it with `install -m 600 -o root -g root /dev/null /etc/myfind/env`:
+#EnvironmentFile=/etc/myfind/env
+
+# gunicorn, NOT `python -m myfind.app`. The Flask development server is
+# single-process, has no worker management, no request timeouts and says so in
+# its own banner.
+#
+# --timeout must exceed the slowest legitimate request. A COLD BaseX aggregation
+# was measured at ~40 s and a cold page query on 127k documents can cross 30 s,
+# so the 30 s default would kill valid requests under the exact conditions that
+# create them.
+ExecStart=/home/maurice/py/myfind/.venv/bin/gunicorn \
+    --workers 4 \
+    --bind 127.0.0.1:8010 \
+    --timeout 120 \
+    --graceful-timeout 30 \
+    --access-logfile - \
+    --error-logfile - \
+    "myfind.app:create_app()"
+
+Restart=on-failure
+RestartSec=3
+
+# Bound loopback above, so only the reverse proxy (or a VPN route) reaches it.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectControlGroups=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# 4 workers measure ~45 MB each (223 MB for master + workers). 1 GB is generous
+# headroom; it exists so a runaway does not take the box down with it.
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target

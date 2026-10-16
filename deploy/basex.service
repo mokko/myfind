@@ -1,0 +1,37 @@
+[Unit]
+Description=BaseX XML database (HTTP/REST server)
+Documentation=https://docs.basex.org/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=maurice
+Group=maurice
+WorkingDirectory=/home/maurice/basex/basex
+
+# bin/basexhttp ends in `exec java -cp ... org.basex.BaseXHTTP`, so it stays in
+# the FOREGROUND -- which is exactly what Type=simple wants. There is no -d or
+# daemonise flag to fight with.
+ExecStart=/home/maurice/basex/basex/bin/basexhttp
+
+# Clean shutdown. SIGTERM to the JVM leaves the databases intact; do NOT let
+# systemd SIGKILL it on a timeout, because a killed write can corrupt a database.
+KillSignal=SIGINT
+TimeoutStopSec=90
+
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+
+# The store is ~5.2 GB of documents and BaseX holds an mmap and index caches over
+# it. This is not a heap-sized number; raise it if the store grows a lot.
+MemoryMax=3G
+
+[Install]
+WantedBy=multi-user.target
