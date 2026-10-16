@@ -25,11 +25,11 @@ from pathlib import Path
 from flask import Flask, abort, jsonify, render_template, request, url_for
 
 from . import ria
-from .basex import BaseXClient
+from .basex import BaseXClient, BaseXError
 from .config import Config, Module
 from .config import load as load_config
 from .indexer import BATCH_QUERY  # noqa: F401  (kept importable for tooling)
-from .solr import SolrClient
+from .solr import SolrClient, SolrError
 
 # Query parameters that are not facets.
 RESERVED = {"q", "page", "sort", "per_page"}
@@ -362,6 +362,37 @@ def create_app(config_path: str | os.PathLike[str] | None = None) -> Flask:
                 "numFound": res["response"]["numFound"],
                 "docs": res["response"]["docs"],
             }
+        )
+
+    # A failure in either backend is reported as a service problem, not a 500.
+    # A 500 says "this application is broken"; the honest message is "search is
+    # unavailable", and it is the difference between a user retrying and a user
+    # filing a bug. The underlying error is still shown, because a portal whose
+    # search silently returns nothing is worse than one that says why.
+    @app.errorhandler(SolrError)
+    def _solr_error(exc: SolrError):
+        return (
+            render_template(
+                "backend_error.html",
+                config=config,
+                backend="Solr",
+                detail=str(exc),
+                url=config.solr.url,
+            ),
+            503,
+        )
+
+    @app.errorhandler(BaseXError)
+    def _basex_error(exc: BaseXError):
+        return (
+            render_template(
+                "backend_error.html",
+                config=config,
+                backend="BaseX",
+                detail=str(exc),
+                url=config.basex.url,
+            ),
+            503,
         )
 
     @app.route("/healthz")

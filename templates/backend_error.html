@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Search unavailable — {{ site.name }}{% endblock %}
+
+{% block content %}
+<div class="no-results" style="max-width: 720px;">
+  <h3>{{ backend }} is not answering.</h3>
+  <p>
+    {{ site.name }} reads records from BaseX and search from Solr. The
+    <strong>{{ backend }}</strong> backend at <code>{{ url }}</code> returned an error,
+    so this page cannot be built.
+  </p>
+  <p class="muted">The record data itself is unaffected — only this response failed.</p>
+  <details class="raw">
+    <summary>What the backend said</summary>
+    <pre>{{ detail }}</pre>
+  </details>
+</div>
+{% endblock %}

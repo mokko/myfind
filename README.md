@@ -37,19 +37,21 @@ Honest state, so a later session does not over-read this repo:
 | **Solr** | **installed and running** — 9.11.0 on port 8983, core `myfind`, schema built |
 | **Pipeline proven** | **20 real records** indexed and queried end to end |
 | Tests | 33 passing (`pytest`), no live services needed |
-| Full index (181k records) | **not yet run** — blocked on the two commands below |
+| **Full index** | **built — 181,203 documents in 11.5 min**, counts matching the source exactly |
 
-### Not yet done, and why
+### Status detail
 
-Everything downstream of the index needs two things only you can provide:
+Working end to end against the real store: search with facets, sort, record
+pages, linked-record pages, and the JSON API, for all three entities.
 
-1. **The BaseX password** as `<repo>/.env` (see *Requirements*). Without it
-   the app cannot read a single record and the indexer cannot read the store.
-2. **A writable directory on the NVMe**, so the index does not land on the eMMC.
+Not done:
 
-Until the index is built, the search pages render an empty result set (correctly —
-they say so) and **record pages already work standalone**, because they read
-BaseX rather than Solr.
+- **The index still lives on the eMMC**, not the NVMe. Moving it needs a
+  one-line `sudo` (see *The box it runs on*), then a rebuild.
+- **No deployment.** The Flask development server is what runs locally; a real
+  host needs a WSGI server and the usual service plumbing.
+- **No saved searches, alerts, or export formats** (citations, RSS) — the
+  session and export features VuFind and Blacklight have that this does not.
 
 ## Solr
 
@@ -62,6 +64,23 @@ export SOLR_JAVA_MEM="-Xms1g -Xmx2g"
 ./bin/solr start -p 8983
 ./bin/solr create -c myfind -n myfind        # real core, once the schema exists
 ```
+
+### A full index, measured
+
+All three modules, on this box, with Solr at a 2 GB heap:
+
+| Module | Documents | Time |
+|---|---|---|
+| Objects | 47,853 | 250.4 s |
+| Persons | 5,799 | 31.7 s |
+| Assets | 127,551 | 405.5 s |
+| **Total** | **181,203** | **687.7 s (11.5 min)** |
+
+About 264 documents/second, and the indexed counts match the source counts
+exactly. The index writes to the eMMC here; on the NVMe it should be faster.
+
+This is a one-off cost, and it is cheap enough that **a full rebuild is a
+reasonable answer to a schema change** rather than something to schedule around.
 
 Two notes worth keeping:
 

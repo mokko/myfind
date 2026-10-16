@@ -289,6 +289,21 @@ side is the reliable one for building "images of this object".
   than one round trip per link.
 - **Only mapping-declared sort keys are accepted** from the query string, so a
   sort cannot be injected.
+- **A field whose only role is `sort` is created as single-valued `string` with
+  docValues.** Solr **cannot sort a multi-valued field at all**, and a
+  `text_general` one is analysed and tokenised, so `KdZ 005653` would sort on its
+  parts. Getting this wrong is a 400 on every sorted request, and it is invisible
+  until someone clicks the sort control.
+- **Changing a field's type requires recreating the core.** Solr refuses to write
+  a document when the field's index options differ from the ones already in the
+  index: `cannot change field "x" from index options=DOCS_AND_FREQS_AND_POSITIONS
+  to inconsistent index options=DOCS`. Deleting the field from the schema is not
+  enough — the options live in the index segments. Delete the core, recreate it,
+  reindex. At 11.5 minutes for the full corpus that is the cheap answer.
+- **A backend error renders as 503, never a bare 500.** A 500 tells the user the
+  application is broken; 503 with the backend's own message tells them search is
+  down and the record data is fine. A portal that returns an empty result set on
+  a backend failure is the worst option: it looks like "no matches".
 
 ## Indexing plan (BaseX → Solr)
 
