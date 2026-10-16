@@ -76,7 +76,11 @@ roles = ["search", "display"]
 field = "object_number_sort"
 kind = "dataField"
 name = "ObjObjectNumberSortedTxt"
-roles = ["sort"]
+# Displayed as well as sortable, deliberately: this is a proof of concept and
+# every mapped field is visible. It is a sort key that happens to be data, so it
+# keeps its single-valued `string` storage (see indexer/solr) -- a field whose
+# only job is ordering does not become analysed text just because it is shown.
+roles = ["sort", "display"]
 # "KdZ 005653" -- zero-padded so a lexical sort is the intended order
 
 [[modules.fields]]
@@ -131,8 +135,10 @@ roles = ["facet", "display"]
 field = "org_unit"
 kind = "systemField"
 name = "__orgUnit"
-roles = ["facet"]
-# "KKZusatzmagazin" -- internal storage unit, useful as a facet for staff
+roles = ["facet", "display"]
+# "KKZusatzmagazin" -- the internal storage unit. Earlier it was facet-only, so
+# it appeared in the sidebar as a filter but was invisible on the record page:
+# you could narrow by a value you could never then see.
 
 [[modules.fields]]
 field = "last_modified"
@@ -202,7 +208,7 @@ roles = ["facet", "display"]
 field = "org_unit"
 kind = "systemField"
 name = "__orgUnit"
-roles = ["facet"]
+roles = ["facet", "display"]
 
 [[modules.fields]]
 field = "last_modified"
@@ -260,7 +266,7 @@ roles = ["display"]
 field = "org_unit"
 kind = "systemField"
 name = "__orgUnit"
-roles = ["facet"]
+roles = ["facet", "display"]
 
 [[modules.fields]]
 field = "last_modified"

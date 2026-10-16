@@ -25,6 +25,21 @@ class FieldSpec:
     def has(self, role: str) -> bool:
         return role in self.roles
 
+    def is_sort_key(self) -> bool:
+        """True when this field exists to be ordered on.
+
+        Such a field is stored as a single-valued `string` with docValues: Solr
+        **cannot sort a multi-valued field at all**, and a `text_general` one
+        sorts on its analysed parts, so `KdZ 005653` would order by fragment.
+
+        The test is deliberately "has `sort`, and is neither searched nor
+        faceted" rather than "its only role is `sort`". Otherwise adding the
+        `display` role to a sort key would silently change its storage to
+        analysed multi-valued text and 400 every sorted request -- with nothing
+        at the point of the edit to say so.
+        """
+        return "sort" in self.roles and not ({"search", "facet"} & set(self.roles))
+
 
 @dataclass(frozen=True)
 class LinkSpec:

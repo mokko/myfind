@@ -187,9 +187,9 @@ class SolrClient:
                     # text_general would either fail or, worse, win the race and
                     # leave a date sorted as a string.
                     continue
-                if set(spec.roles) == {"sort"}:
-                    # A sort-only field exists to be sorted on. Solr cannot sort
-                    # a multi-valued field, and a `text_general` one is analysed
+                if spec.is_sort_key():
+                    # A sort key exists to be ordered on. Solr cannot sort a
+                    # multi-valued field, and a `text_general` one is analysed
                     # and tokenised, so "KdZ 005653" would sort on its parts.
                     # `string` + docValues + single-valued is the sortable shape.
                     wanted.append(

@@ -99,15 +99,37 @@ def test_a_field_that_is_not_facetable_gets_no_facet_copy(config, monkeypatch):
     assert spec_for(captured, "date_display_facet") is None
 
 
-def test_a_sort_only_field_is_single_valued_string_with_doc_values(config, monkeypatch):
-    """THE regression. `object_number_sort` used to be multi-valued analysed
-    text, and Solr cannot sort a multi-valued field at all -- so every sorted
-    request was a 400, invisible until the sort control was clicked."""
+def test_a_sort_key_that_is_also_displayed_stays_sortable(config, monkeypatch):
+    """THE regression this change could have introduced.
+
+    `object_number_sort` gained a `display` role so a proof-of-concept record page
+    shows every mapped field. Had "is it a sort key" stayed implemented as "is its
+    only role sort", that edit would have silently re-typed the field as
+    multi-valued analysed text and 400'd every sorted request.
+    """
     captured, _ = capture_schema(config, monkeypatch)
     sort = spec_for(captured, "object_number_sort")
     assert sort["type"] == "string"
     assert sort["multiValued"] is False
     assert sort["docValues"] is True
+
+
+def test_the_shipped_mapping_leaves_a_sort_key_sortable(config):
+    spec = next(f for f in config.module("Object").fields if f.field == "object_number_sort")
+    assert spec.has("sort") and spec.has("display")
+    assert spec.is_sort_key() is True
+
+
+def test_a_field_that_is_both_sorted_and_faceted_is_not_a_sort_key(config):
+    """The rule is bounded: a multi-valued field cannot be a sort key, so one
+    that is also facetable must not be typed as single-valued."""
+    from myfind.config import FieldSpec
+
+    assert FieldSpec("x", "dataField", "X", ("sort", "facet")).is_sort_key() is False
+    assert FieldSpec("x", "dataField", "X", ("sort", "search")).is_sort_key() is False
+    assert FieldSpec("x", "dataField", "X", ("sort",)).is_sort_key() is True
+    assert FieldSpec("x", "dataField", "X", ("sort", "display")).is_sort_key() is True
+    assert FieldSpec("x", "dataField", "X", ("display",)).is_sort_key() is False
 
 
 def test_link_fields_are_string_sets(config, monkeypatch):

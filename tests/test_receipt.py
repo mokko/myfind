@@ -132,8 +132,8 @@ def test_the_mapping_hash_is_stable_across_loads(config):
     assert mapping_hash(config) == mapping_hash(load("myfind.toml"))
 
 
-def test_the_mapping_hash_changes_when_a_field_role_changes(config):
-    """Roles decide what lands in the index, so they are part of the hash."""
+def test_the_mapping_hash_changes_when_an_indexed_role_changes(config):
+    """`search` decides what the catch-all holds, so it is part of the hash."""
     import dataclasses
 
     from myfind.config import FieldSpec
@@ -146,6 +146,52 @@ def test_the_mapping_hash_changes_when_a_field_role_changes(config):
                               for m in config.modules)
     )
     assert mapping_hash(altered) != mapping_hash(config)
+
+
+def test_adding_the_display_role_does_not_invalidate_the_index(config):
+    """A display-only edit changes the template, not the document.
+
+    If it invalidated the receipt, showing one more field would cost an
+    eleven-minute rebuild -- and a hash that cries wolf is a hash people learn to
+    override with --reset, which is how a real invalidation gets ignored.
+    """
+    import dataclasses
+
+    from myfind.config import FieldSpec
+
+    module = config.module("Object")
+    before = FieldSpec("zzz", "systemField", "__zzz", ("facet",))
+    after = FieldSpec("zzz", "systemField", "__zzz", ("facet", "display"))
+
+    def with_extra(spec):
+        return dataclasses.replace(
+            config,
+            modules=tuple(
+                dataclasses.replace(m, fields=m.fields + ((spec,) if m.name == "Object" else ()))
+                for m in config.modules
+            ),
+        )
+
+    assert mapping_hash(with_extra(after)) == mapping_hash(with_extra(before))
+
+
+def test_removing_the_display_role_does_not_invalidate_either(config):
+    import dataclasses
+
+    from myfind.config import FieldSpec
+
+    def with_extra(spec):
+        return dataclasses.replace(
+            config,
+            modules=tuple(
+                dataclasses.replace(m, fields=m.fields + ((spec,) if m.name == "Object" else ()))
+                for m in config.modules
+            ),
+        )
+
+    plain = FieldSpec("w", "virtualField", "ObjW", ("search",))
+    shown = FieldSpec("w", "virtualField", "ObjW", ("search", "display"))
+    assert mapping_hash(with_extra(plain)) == mapping_hash(with_extra(shown))
 
 
 def test_the_mapping_hash_changes_when_a_link_changes(config):

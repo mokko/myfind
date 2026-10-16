@@ -54,7 +54,15 @@ def mapping_hash(config: Config) -> str:
             {
                 "name": m.name,
                 "database": m.database,
-                "fields": [[f.field, f.kind, f.name, list(f.roles)] for f in m.fields],
+                # Only the roles that change what is WRITTEN to Solr. `display`
+                # affects the template, not the document, so adding it to a field
+                # must not invalidate the index and force a full rebuild -- that
+                # is a false invalidation, and it teaches people to ignore the
+                # receipt.
+                "fields": [
+                    [f.field, f.kind, f.name, sorted(r for r in f.roles if r != "display")]
+                    for f in m.fields
+                ],
                 "links": [[l.field, l.reference, l.target] for l in m.links],
             }
         )
@@ -120,7 +128,7 @@ def map_record(record: ET.Element, module: Module, offset: str) -> dict | None:
         values = ria.extract_values(item, spec)
         if not values:
             continue
-        if set(spec.roles) == {"sort"}:
+        if spec.is_sort_key():
             # Single-valued in Solr, so write a scalar rather than a list: a
             # one-element array happens to work, and stops working the moment a
             # record carries two values.
