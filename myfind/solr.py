@@ -231,6 +231,29 @@ class SolrClient:
                     }
                 )
 
+        # Merge by field name before applying anything. Several Solr fields are
+        # legitimately shared across modules -- `title` (Object and Person),
+        # `org_unit` (all three), `object_ids` (Person and Multimedia) -- so
+        # without this the same name is added once per module that maps it.
+        #
+        # Identical definitions collapse harmlessly. CONFLICTING ones are an
+        # error, and must be: otherwise whichever module happens to be iterated
+        # first silently decides the type, and a facet that one module declares
+        # is quietly absent because another declared the field without it.
+        by_name: dict[str, dict] = {}
+        for spec in wanted:
+            name = spec["name"]
+            previous = by_name.get(name)
+            if previous is None:
+                by_name[name] = spec
+            elif previous != spec:
+                raise ValueError(
+                    f"field {name!r} is declared with two different definitions: "
+                    f"{previous} vs {spec}. Two modules mapping one field must "
+                    f"agree on its type and options."
+                )
+        wanted = list(by_name.values())
+
         # add-field errors if the field already exists; that is the idempotent
         # case, so each is applied individually and an "already exists" reply is
         # not an error.

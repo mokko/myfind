@@ -218,9 +218,9 @@ everything.
 ## Test
 
 ```bash
-.venv/bin/python -m pytest -m "not integration"   # 75 tests, ~1.3 s, no services
+.venv/bin/python -m pytest -m "not integration"   # 132 tests, ~2 s, no services
 .venv/bin/python -m pytest                        # + 8 live tests against BaseX and Solr
-.venv/bin/python -m pytest --cov=myfind           # with coverage
+.venv/bin/python -m pytest --cov=myfind           # with coverage (currently 93%)
 ```
 
 **Two layers, deliberately.**
