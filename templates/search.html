@@ -21,7 +21,7 @@
     {% for spec in module.facet_fields() %}
       {% set values = facets.get(spec.field ~ '_facet', []) %}
       <div class="facet">
-        <h3>{{ spec.field.replace('_', ' ') }}</h3>
+        <h3>{{ label_for(spec.field) }}</h3>
         {% if values %}
           <ul>
             {% for i in range(0, values | length, 2) %}
@@ -90,7 +90,7 @@
               {% for field in module.result_fields %}
                 {% set value = first(doc, field) %}
                 {% if value %}
-                  <div><dt>{{ field.replace('_', ' ') }}</dt><dd>{{ value }}</dd></div>
+                  <div><dt>{{ label_for(field) }}</dt><dd>{{ value }}</dd></div>
                 {% endif %}
               {% endfor %}
             </div>

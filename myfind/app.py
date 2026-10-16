@@ -375,7 +375,13 @@ def create_app(config_path: str | os.PathLike[str] | None = None) -> Flask:
 
     @app.context_processor
     def inject():
-        return {"site": config.site, "modules": config.modules}
+        # `label_for` is exposed so a template renders "Object number" rather
+        # than the raw field name: the mapping's key is an identifier, not copy.
+        return {
+            "site": config.site,
+            "modules": config.modules,
+            "label_for": label_for,
+        }
 
     return app
 
@@ -423,7 +429,10 @@ def label_for(field: str) -> str:
         "file_size": "File size",
         "has_thumbnail": "Has thumbnail",
         "maker": "Maker",
-        "maker_display": "Maker",
+        # Both forms are shown on purpose: "Watteau, Antoine Jean" (inverted, what
+        # a facet sorts on) and "Jean Antoine Watteau (1684-1721)" (natural, with
+        # dates). Distinct labels, or the record page shows "Maker" twice.
+        "maker_display": "Maker (full form)",
         "maker_ids": "Makers",
         "asset_ids": "Assets",
         "object_ids": "Objects",
@@ -441,15 +450,16 @@ def _sort_param(sort: str | None, module: Module) -> str | None:
     cannot be injected through the query string.
     """
     sortable = {f.field for f in module.sort_fields()}
+    default = "score desc, last_modified desc"
     if not sort:
-        return "score desc, last_modified desc"
+        return default
     key = sort.lstrip("-")
     if key not in sortable:
-        return "score desc, last_modified desc"
+        return default
     direction = "asc" if sort.startswith("-") else "desc"
-    if key == "last_modified":
-        return f"last_modified {direction}"
-    return f"{key}_facet {direction}" if key == "object_number_sort" else f"{key} {direction}"
+    # Sort on the field itself, never on a `_facet` companion: facet fields are
+    # multi-valued strings, and Solr cannot sort a multi-valued field.
+    return f"{key} {direction}"
 
 
 def main() -> None:

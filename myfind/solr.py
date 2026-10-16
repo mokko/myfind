@@ -173,14 +173,34 @@ class SolrClient:
         facet_fields: list[str] = []
         for module in config.modules:
             for spec in module.fields:
-                wanted.append(
-                    {
-                        "name": spec.field,
-                        "type": "text_general",
-                        "multiValued": True,
-                        "stored": True,
-                    }
-                )
+                if spec.field == "last_modified":
+                    # Declared explicitly above as `pdate`; adding it again as
+                    # text_general would either fail or, worse, win the race and
+                    # leave a date sorted as a string.
+                    continue
+                if set(spec.roles) == {"sort"}:
+                    # A sort-only field exists to be sorted on. Solr cannot sort
+                    # a multi-valued field, and a `text_general` one is analysed
+                    # and tokenised, so "KdZ 005653" would sort on its parts.
+                    # `string` + docValues + single-valued is the sortable shape.
+                    wanted.append(
+                        {
+                            "name": spec.field,
+                            "type": "string",
+                            "multiValued": False,
+                            "stored": True,
+                            "docValues": True,
+                        }
+                    )
+                else:
+                    wanted.append(
+                        {
+                            "name": spec.field,
+                            "type": "text_general",
+                            "multiValued": True,
+                            "stored": True,
+                        }
+                    )
                 if spec.has("facet") and spec.field not in facet_fields:
                     facet_fields.append(spec.field)
                     wanted.append(

@@ -120,7 +120,13 @@ def map_record(record: ET.Element, module: Module, offset: str) -> dict | None:
         values = ria.extract_values(item, spec)
         if not values:
             continue
-        doc[spec.field] = values
+        if set(spec.roles) == {"sort"}:
+            # Single-valued in Solr, so write a scalar rather than a list: a
+            # one-element array happens to work, and stops working the moment a
+            # record carries two values.
+            doc[spec.field] = values[0]
+        else:
+            doc[spec.field] = values
         if spec.has("facet"):
             doc[f"{spec.field}_facet"] = values
         if spec.has("search"):

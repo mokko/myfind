@@ -44,8 +44,9 @@ plural = "objects"
 database = "sync_Object"
 # Routes: /Object/  (search), /Object/447469  (record)
 route = "record"
-# Columns shown in the results list, in order.
-resultFields = ["title", "object_number", "maker", "object_type", "date_display"]
+# Columns shown in the results list, in order. The title is NOT listed: it is
+# the result's heading, and repeating it as a column reads as a duplicate.
+resultFields = ["object_number", "maker", "object_type", "date_display"]
 
 # A field is picked up from any of these element kinds, addressed by @name.
 # `roles` decides what the value is used for:
@@ -60,11 +61,16 @@ name = "ObjObjectTitleVrt"
 roles = ["search", "display"]
 # present 47853 / non-empty 47242 -- 611 objects have no title (AGENTS.md)
 
+# Search and display, but deliberately NOT a facet: an object number is
+# near-unique (47,853 objects, ~5,600 distinct values, most with a count of 1),
+# so as a facet it fills the sidebar with unusable singletons -- measured on the
+# real index as counts of 39, 36, 33, 30, 27 and then a long tail of 1s. A facet
+# belongs on a field with a bounded vocabulary.
 [[modules.fields]]
 field = "object_number"
 kind = "dataField"
 name = "ObjObjectNumberTxt"
-roles = ["search", "facet", "display"]
+roles = ["search", "display"]
 
 [[modules.fields]]
 field = "object_number_sort"
@@ -159,7 +165,7 @@ label = "Persons"
 plural = "persons"
 database = "sync_Person"
 route = "record"
-resultFields = ["title", "authorised_form", "person_type"]
+resultFields = ["authorised_form", "person_type"]
 
 [[modules.fields]]
 field = "title"
@@ -209,7 +215,8 @@ label = "Assets"
 plural = "assets"
 database = "sync_Multimedia"
 route = "record"
-resultFields = ["file", "asset_type", "file_size"]
+# The file name is the heading for an asset, so it is not repeated here.
+resultFields = ["asset_type", "file_size"]
 
 [[modules.fields]]
 field = "asset_type"
