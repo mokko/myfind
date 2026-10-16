@@ -114,6 +114,17 @@ class Config:
                 return m
         raise KeyError(f"unknown module: {name}")
 
+    def find(self, name: str) -> Module | None:
+        """The module, or None when it is not a configured entity.
+
+        Needed because a link may name a target that this installation does not
+        serve: the mapping declares `ObjOwnerRef -> Address` and there is no
+        Address module, on purpose. `module()` raising is right -- a typo in a
+        route is a bug -- but a link target is data, and "not here" is a normal
+        answer for it.
+        """
+        return next((m for m in self.modules if m.name == name), None)
+
     def module_names(self) -> list[str]:
         return [m.name for m in self.modules]
 

@@ -72,10 +72,17 @@ class LinkGroup:
     Named `links`, not `items`: a dict key called `items` is reachable from Jinja
     only as `group.items`, which finds `dict.items` -- the bound method -- and
     fails to iterate. Same trap as `DisplayField.values`.
+
+    `target` may be None when the reference names a module this installation does
+    not serve -- `ObjOwnerRef -> Address` is on every object and there is no
+    Address module. Then `target_name` is None (nothing to link to) and every
+    link in the group renders as a label marked "not in this index".
     """
 
     label: str
-    target: Module
+    target: Module | None
+    target_label: str
+    target_name: str | None
     links: list[ResolvedLink]
 
 
@@ -295,20 +302,33 @@ def create_app(config_path: str | os.PathLike[str] | None = None) -> Flask:
                     )
                 )
 
-            # Linked records, with existence resolved in one query per target.
+            # Linked records. The target may be a module this installation does
+            # not serve -- ObjOwnerRef points at Address and there is no Address
+            # module -- so the lookup is tolerant and the group renders as
+            # labels marked "not in this index".
             link_groups = []
             for link in module.links:
                 targets = ria.extract_links(item, link)
                 if not targets:
                     continue
-                target_module = config.module(link.target)
-                present = bx.existing_documents(
-                    target_module.database, target_module.name, [t["id"] for t in targets]
+                target_module = config.find(link.target)
+                present = (
+                    bx.existing_documents(
+                        target_module.database,
+                        target_module.name,
+                        [t["id"] for t in targets],
+                    )
+                    if target_module
+                    else set()
                 )
                 link_groups.append(
                     LinkGroup(
                         label=label_for(link.field),
                         target=target_module,
+                        target_label=(
+                            target_module.display_label() if target_module else link.target
+                        ),
+                        target_name=target_module.name if target_module else None,
                         links=[
                             ResolvedLink(
                                 id=t["id"],
@@ -466,6 +486,7 @@ def label_for(field: str) -> str:
         "maker_display": "Maker (full form)",
         "maker_ids": "Makers",
         "asset_ids": "Assets",
+        "owner_ids": "Holding institution",
         "object_ids": "Objects",
         "photographer_ids": "Photographers",
         "authorised_form": "Authorised form",

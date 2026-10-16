@@ -218,8 +218,29 @@ everything.
 ## Test
 
 ```bash
-.venv/bin/python -m pytest -q          # 33 tests, no live services needed
+.venv/bin/python -m pytest -m "not integration"   # 75 tests, ~1.3 s, no services
+.venv/bin/python -m pytest                        # + 8 live tests against BaseX and Solr
+.venv/bin/python -m pytest --cov=myfind           # with coverage
 ```
+
+**Two layers, deliberately.**
+
+*Unit tests* render every route and exercise every mapping decision with both
+backends faked (`tests/fakes.py`), so the suite runs anywhere in about a second.
+They exist because the route layer was the least-covered code in the project and
+the source of every bug that shipped — two record pages 500ing on a Jinja name
+collision, every asset headed "Untitled record", every asset page linkless. None
+of those needed a real backend to catch; they needed the page rendering.
+
+*Integration tests* (`tests/test_integration.py`) run against the real services
+and assert the things a fake cannot: that a document name resolves, that an
+absent document returns nothing instead of a 500, that a sortable field actually
+sorts and comes back ordered, and that facet counts still offer other values
+while one is selected. They skip themselves when a service is down, so the bare
+`pytest` above is still runnable on a machine with nothing running.
+
+Measurements in this README and `AGENTS.md` come from the integration layer —
+they are not guesses derived from fixtures.
 
 ## The data it serves
 

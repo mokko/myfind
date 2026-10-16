@@ -156,6 +156,17 @@ target = "Multimedia"
 # 43983 objects -- but the Multimedia side (MulObjectRef, 127551) is populated
 # for every asset, so "images of this object" is built from the asset side.
 
+# The holding institution. This link ALWAYS dangles: it is on every object
+# (47,853/47,853) and the Address module was never ingested. It is configured
+# anyway because the label the reference item carries -- "Kupferstichkabinett,
+# Staatliche Museen zu Berlin" -- is the institution, and losing that from every
+# record page to avoid a dangling reference would be the wrong trade. It is also
+# the case that keeps the "not in this index" path honest.
+[[modules.links]]
+field = "owner_ids"
+reference = "ObjOwnerRef"
+target = "Address"
+
 # ---------------------------------------------------------------------------
 # Person
 # ---------------------------------------------------------------------------

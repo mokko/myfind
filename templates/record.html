@@ -60,15 +60,16 @@
         <ul>
           {% for link in group.links %}
             <li>
-              {% if link.present %}
-                <a href="{{ url_for('record', module_name=group.target.name, record_id=link.id) }}">{{ link.label }}</a>
+              {% if link.present and group.target_name %}
+                <a href="{{ url_for('record', module_name=group.target_name, record_id=link.id) }}">{{ link.label }}</a>
               {% else %}
-                {# 14 modules are referenced but were never ingested -- including
-                   the owner on every single object. The label is present even
-                   when the target is not, so it is shown and marked. #}
+                {# Either the target module is not served at all, or its record
+                   was never ingested -- including the owner on every single
+                   object. The label is present even when the target is not, so
+                   it is shown and marked. #}
                 <span class="missing">
                   {{ link.label }}
-                  <span class="badge">{{ group.target.display_label() }} not in this index</span>
+                  <span class="badge">{{ group.target_label }} not in this index</span>
                 </span>
               {% endif %}
             </li>
