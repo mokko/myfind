@@ -130,7 +130,12 @@ class BaseXClient:
         """Run a query, return the raw serialised output."""
         if "]]>" in xquery:
             raise ValueError("query text may not contain a CDATA close (]]>)")
-        resp = self.client.post(self.url, content=self._body(xquery, variables))
+        try:
+            resp = self.client.post(self.url, content=self._body(xquery, variables))
+        except httpx.HTTPError as exc:
+            # BaseX being unreachable is reported as a BaseX error, so the app
+            # can answer 503 rather than an unhandled transport traceback.
+            raise BaseXError(f"cannot reach BaseX at {self.url}: {exc}") from exc
         if resp.status_code >= 400:
             raise BaseXError(f"HTTP {resp.status_code}: {resp.text.strip()[:500]}")
         return resp.text

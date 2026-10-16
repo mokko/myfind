@@ -54,18 +54,27 @@ class SolrClient:
     # -- transport --------------------------------------------------------
 
     def _post(self, path: str, payload: object, ctype: str = "application/json") -> dict:
-        resp = self._client.post(
-            f"{self.url}/{path.lstrip('/')}",
-            json=payload if ctype == "application/json" else None,
-            content=None if ctype == "application/json" else payload,
-            headers={"Content-Type": ctype},
-        )
+        try:
+            resp = self._client.post(
+                f"{self.url}/{path.lstrip('/')}",
+                json=payload if ctype == "application/json" else None,
+                content=None if ctype == "application/json" else payload,
+                headers={"Content-Type": ctype},
+            )
+        except httpx.HTTPError as exc:
+            # A Solr that is DOWN must look like a Solr that failed, not an
+            # unhandled transport exception: the app answers 503 for the first
+            # and a bare 500 for the second.
+            raise SolrError(f"cannot reach Solr at {self.url}: {exc}") from exc
         if resp.status_code >= 400:
             raise SolrError(f"HTTP {resp.status_code}: {resp.text.strip()[:500]}")
         return resp.json() if resp.content else {}
 
     def _get(self, path: str, **params: object) -> dict:
-        resp = self._client.get(f"{self.url}/{path.lstrip('/')}", params=params)
+        try:
+            resp = self._client.get(f"{self.url}/{path.lstrip('/')}", params=params)
+        except httpx.HTTPError as exc:
+            raise SolrError(f"cannot reach Solr at {self.url}: {exc}") from exc
         if resp.status_code >= 400:
             raise SolrError(f"HTTP {resp.status_code}: {resp.text.strip()[:500]}")
         return resp.json()
