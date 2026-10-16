@@ -393,5 +393,9 @@ Follow `the sibling OAI-PMH provider project`:
    Object → Multimedia when building the related-items panel (the counts differ
    by 3×; see above).
 3. Solr heap for a 5.2 GB corpus on a 16 GB box shared with BaseX, the desktop
-   stack and a browser: start at 2 GB and measure. Do not raise it before
-   measuring.
+   stack and a browser: **measured, not guessed** — 512 MB, 1 GB and 2 GB were
+   each replayed against the same 240 faceted queries, and the live working set
+   is only ~70-140 MB whatever the ceiling is. Set to 2 GB as deliberate
+   headroom, since a ceiling is a limit and not a reservation (`-Xms1g` commits
+   one gigabyte; the rest is taken on demand). The measurements are in the
+   README; revisit only if the corpus grows by an order of magnitude.

@@ -60,14 +60,14 @@ Installed at `<SOLR_HOME>`, running on **8983** (BaseX has 8080 and
 
 ```bash
 cd <SOLR_HOME>
-export SOLR_JAVA_MEM="-Xms1g -Xmx1g"
+export SOLR_JAVA_MEM="-Xms1g -Xmx2g"
 ./bin/solr start -p 8983
 ./bin/solr create -c myfind -n myfind        # real core, once the schema exists
 ```
 
 ### A full index, measured
 
-All three modules, on this box, with Solr at a **1 GB heap**:
+All three modules, on this box, with Solr at a 2 GB heap:
 
 | Module | Documents | Time |
 |---|---|---|
@@ -105,13 +105,18 @@ Solr at each size and replaying the same 240 faceted queries:
 The index is **33 MB on disk**, and the live working set is roughly **70–140 MB**
 regardless of the ceiling — it does not grow with the heap. The 2 GB instance
 *used* more only because a larger heap means larger caches and lazier GC, not
-because it needed them. Both configurations answer the widest single query
+because it needed them. Every configuration answers the widest single query
 (five facets over all 47,853 objects) in tens of milliseconds.
 
-**1 GB is the setting here**: enough headroom for cache growth as fields are
-added, a full gigabyte less than 2 GB on a box where only ~5.5 GB is free.
-512 MB genuinely works today, but leaves little room for the index to grow.
-Revert with `SOLR_JAVA_MEM` in `bin/solr.in.sh` and a restart.
+**The setting here is 2 GB, and that is a deliberate headroom choice rather than
+a requirement.** A ceiling is a *limit*, not a reservation: `-Xms1g -Xmx2g`
+commits one gigabyte at start and takes the rest on demand, so the second
+gigabyte costs nothing until the index grows into it. Measured: RSS is ~1.25 GB
+with only 255 MB of heap in use, i.e. driven by the committed gigabyte, not the
+ceiling. Raising it later would cost a restart; leaving room now does not.
+
+If the box ever gets tight, 512 MB is genuinely sufficient for the corpus as it
+stands — set `SOLR_JAVA_MEM` in `bin/solr.in.sh` and restart.
 
 Caveat: the widest-query timing is a single sample per size and is confounded by
 cache warmth — the 2 GB instance had been up for hours. Treat the working-set
