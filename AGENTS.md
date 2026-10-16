@@ -14,7 +14,7 @@ myfind/
   ria.py                   reading values/links out of a stored moduleItem
   solr.py                  Solr client; schema GENERATED from myfind.toml
   indexer.py               BaseX -> Solr, batched, resumable via receipt
-  app.py                   Flask routes
+  app.py                   Starlette routes (ASGI)
 templates/                 base, home, search, search_all, record
 static/style.css
 tools/
@@ -28,13 +28,13 @@ tests/                     33 tests; none need a live service
 The request path, end to end:
 
 ```
-browser -> Flask -> Solr (search, facets, paging)          <- only this touches 181k records
+browser -> Starlette -> Solr (search, facets, paging)       <- only this touches 181k records
                   -> BaseX (record page, linked records)   <- O(1) document-name lookups
 ```
 
-`basex.py` is deliberately synchronous:
-Flask is WSGI, so requests are already served one-per-thread and an async client
-would only add an event loop to babysit. The async twin in `the sibling OAI-PMH provider project`
+`basex.py` carries **both** a synchronous and an asynchronous client:
+the sync one serves the indexer and CLI tools, the async one serves the app.
+The query text, escaping and parsing are shared, so the two cannot drift. The async twin in `the sibling OAI-PMH provider project`
 exists for a Starlette app and is not a better shape here.
 
 ## The store (BaseX)
@@ -370,7 +370,7 @@ the same before it grows a second caller.
   never from a tracked file. The tracked TOML carries a dev placeholder only so a
   fresh checkout runs.
 - The REST endpoint is a full read/write XQuery interface. Keep it bound to
-  localhost and put only the Flask app on a reachable port.
+  localhost and put only the app on a reachable port.
 
 ## Testing conventions
 

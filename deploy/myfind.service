@@ -1,5 +1,5 @@
 [Unit]
-Description=myfind discovery portal (gunicorn)
+Description=myfind discovery portal (ASGI: uvicorn + Starlette)
 Documentation=https://github.com/mokko/myfind
 After=network-online.target
 Wants=network-online.target
@@ -19,22 +19,26 @@ WorkingDirectory=/home/maurice/py/myfind
 # it with `install -m 600 -o root -g root /dev/null /etc/myfind/env`:
 #EnvironmentFile=/etc/myfind/env
 
-# gunicorn, NOT `python -m myfind.app`. The Flask development server is
-# single-process, has no worker management, no request timeouts and says so in
-# its own banner.
+# The ASGI server, NOT `gunicorn` (which serves WSGI) and NOT `python -m myfind.app`
+# (a development entry point). gunicorn against this app fails outright: it is
+# ASGI now, and gunicorn speaks WSGI.
 #
-# --timeout must exceed the slowest legitimate request. A COLD BaseX aggregation
-# was measured at ~40 s and a cold page query on 127k documents can cross 30 s,
-# so the 30 s default would kill valid requests under the exact conditions that
-# create them.
-ExecStart=/home/maurice/py/myfind/.venv/bin/gunicorn \
-    --workers 4 \
-    --bind 127.0.0.1:8010 \
-    --timeout 120 \
-    --graceful-timeout 30 \
-    --access-logfile - \
-    --error-logfile - \
-    "myfind.app:create_app()"
+# --factory because create_app() is a factory, not a module-level app object.
+# --proxy-headers + --forwarded-allow-ips let uvicorn trust nginx's
+# X-Forwarded-* headers, so client IPs and scheme are right behind the proxy.
+#
+# FEWER workers than the WSGI version needed: one event loop now holds many
+# requests in flight, where before concurrency came only from processes. CPU work
+# (the XML parse) is offloaded per-request via anyio.to_thread, whose default
+# limiter is 40 threads.
+ExecStart=/home/maurice/py/myfind/.venv/bin/uvicorn myfind.app:create_app \
+    --factory \
+    --host 127.0.0.1 \
+    --port 8010 \
+    --workers 2 \
+    --proxy-headers \
+    --forwarded-allow-ips 127.0.0.1 \
+    --timeout-keep-alive 15
 
 Restart=on-failure
 RestartSec=3

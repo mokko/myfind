@@ -1,6 +1,6 @@
 # myfind
 
-A small collection discovery portal: **Flask + Jinja** in front, **BaseX** as the
+A small collection discovery portal: **Starlette + Jinja** in front, **BaseX** as the
 record store, **Solr** as the search index. It is a deliberately reduced
 re-implementation of the two systems it is modelled on — VuFind (PHP) and
 Blacklight (Ruby/Rails) — for one museum collection whose records already live
@@ -48,7 +48,7 @@ Not done:
 
 - **The index still lives on the eMMC**, not the NVMe. Moving it needs a
   one-line `sudo` (see *The box it runs on*), then a rebuild.
-- **No deployment.** The Flask development server is what runs locally; a real
+- **No deployment.** The development entry point is what runs locally; a real
   host needs a WSGI server and the usual service plumbing.
 - **No saved searches, alerts, or export formats** (citations, RSS) — the
   session and export features VuFind and Blacklight have that this does not.
@@ -154,7 +154,7 @@ blocker at this size.
 
 - BaseX 12 with the module databases loaded (already the case)
 - Java 21 for Solr (present)
-- Python ≥ 3.11 with `flask` and `httpx`
+- Python ≥ 3.11 with `starlette` and `httpx`
 
 ## Quick start
 
@@ -250,9 +250,9 @@ everything.
 ## Test
 
 ```bash
-.venv/bin/python -m pytest -m "not integration"   # 132 tests, ~2 s, no services
+.venv/bin/python -m pytest -m "not integration"   # 165 tests, ~2 s, no services
 .venv/bin/python -m pytest                        # + 8 live tests against BaseX and Solr
-.venv/bin/python -m pytest --cov=myfind           # with coverage (currently 93%)
+.venv/bin/python -m pytest --cov=myfind           # with coverage (currently 92%)
 ```
 
 **Two layers, deliberately.**
@@ -289,7 +289,7 @@ Three MuseumPlus RIA modules, one document per record:
 
 ## Roadmap
 
-**Phase 1 — Flask + Jinja + direct BaseX (no Solr).**
+**Phase 1 — Jinja over direct BaseX queries (no Solr).**
 Record pages, linked-record pages, field display. These are all O(1) document
 lookups, so they are fast *without* any index. This is the part BaseX is good at
 and it validates the field mapping against real records.

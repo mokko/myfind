@@ -1,8 +1,8 @@
 # Deploying myfind
 
 ```
-browser ──> nginx :80 ──> gunicorn 127.0.0.1:8010 ──┬─> Solr 127.0.0.1:8983   (search, facets, sort)
-                                                    └─> BaseX 0.0.0.0:8080    (record pages, links)
+browser ──> nginx :80 ──> uvicorn 127.0.0.1:8010 ──┬─> Solr 127.0.0.1:8983   (search, facets, sort)
+                                                   └─> BaseX 0.0.0.0:8080    (record pages, links)
 ```
 
 Four moving parts, and **as of writing none of them is supervised**: BaseX, Solr
@@ -21,7 +21,7 @@ brings them back. That is the actual production gap, and these units close it.
 ## Install
 
 ```bash
-# 1. Dependencies, pinned. gunicorn goes INTO the venv, not via apt -- see below.
+# 1. Dependencies, pinned. The ASGI server goes INTO the venv, not via apt -- see below.
 cd ~/py/myfind
 uv lock
 uv pip install -e ".[prod]"
@@ -67,11 +67,11 @@ journalctl -u myfind -f                        # the app's logs
 
 ## Traps, each of which cost something to find
 
-**`apt install gunicorn` installs the wrong one.** This box has two Pythons:
-system `3.12.3` and the project venv's `3.14.7`. apt's `python3-gunicorn` targets
-the system interpreter and **cannot see the venv's packages**, so the app would
-fail to import. gunicorn must be installed *into the venv* — `uv pip install -e
-".[prod]"` — and the unit calls `.venv/bin/gunicorn` by absolute path.
+**A server installed from apt is the wrong one.** This box has two Pythons:
+system `3.12.3` and the project venv's `3.14.7`. apt's Python packages target the
+system interpreter and **cannot see the venv's packages**, so the app would fail
+to import. The server must be installed *into the venv* — `uv pip install -e
+".[prod]"` — and the unit calls `.venv/bin/uvicorn` by absolute path.
 
 **Solr must be started with `-f`.** Plain `solr start` daemonises and exits
 immediately; under `Type=simple` systemd reads that as "the service died" and
@@ -80,10 +80,13 @@ restarts it in a loop. `solr start -f` stays in the foreground.
 **`basexhttp` needs no flag** — it ends in `exec java …`, so it is already in the
 foreground. Verified by reading the script rather than guessing.
 
-**The proxy timeout must exceed the app timeout.** gunicorn is `--timeout 120`,
-nginx is `proxy_read_timeout 130s`. Inverted, nginx returns 504 for exactly the
-slowest and most legitimate requests — a cold page query over 127k documents was
-measured crossing 30 s.
+**The proxy is now the only request timeout.** Under gunicorn, `--timeout 120`
+killed long requests — which is why nginx's `proxy_read_timeout` had to be set
+*above* it. Uvicorn has no request timeout at all: `--timeout-keep-alive` governs
+idle connections *between* requests, not the length of one. So `proxy_read_timeout
+130s` in the nginx config is the effective ceiling, and it must accommodate the
+slowest legitimate query — a cold page over 127k documents was measured crossing
+30 s.
 
 **Port 8000 is already taken** on this box by the sibling OAI provider
 (`uvicorn oai.app:app --port 8000`). myfind listens on **8010**. Check before
@@ -105,19 +108,28 @@ is the authoritative copy.
 secret in it. If you prefer a root-owned central file, uncomment
 `EnvironmentFile` in `myfind.service`.
 
-## Why gunicorn, and not the development server
+## Why an ASGI server, and not the development server
 
-Flask's own banner says the development server is not for production, and it
-means it: one process, no worker supervision, no request timeout, no graceful
-reload, and a single slow request blocks everything behind it. gunicorn adds
-process management, timeouts, graceful restarts and access logging.
+Flask's banner used to say the development server is not for production, and it
+meant it. The equivalent here: `python -m myfind.app` exists for convenience, and
+the unit runs the ASGI server directly. That adds worker supervision, timeouts,
+graceful restarts, access logging, and — with `--proxy-headers` — correct client
+IPs and scheme behind nginx.
 
-4 workers is a judgement, not a formula. Every request does **blocking** HTTP to
-BaseX or Solr, so concurrency comes from workers rather than threads — a
-threaded worker would help only if the app were I/O-async. 4 workers measured
-**~45 MB each, 223 MB total**, against 5.2 GB free.
+**Two workers, not four.** Concurrency no longer comes from process count: one
+event loop holds many requests in flight, and the app fans out to the backends
+with `asyncio.gather` in three places that the synchronous version could only
+serve in series. Workers are now for resilience (one can restart while the other
+serves), not for throughput.
 
-**If this ever becomes more than a proof of concept**, the scaling move is to
-convert the app to ASGI (Starlette + `httpx.AsyncClient` + uvicorn/hypercorn),
-which is exactly what the sibling OAI project does. The synchronous design was
-chosen to suit Flask, and it puts a hard ceiling on concurrency per worker.
+Measured: ~55 MB per worker. Note that CPU work — the XML parse on a record page —
+is offloaded per request via `anyio.to_thread`, whose default limiter is 40
+threads. **That offload is load-bearing.** Without it, a single record with large
+CLOBs would block every other request sharing the loop, and the migration would
+be a regression rather than a win.
+
+**If this ever needs more headroom**, raise `--workers` first — it is one number,
+requires no code change, and 16 workers still cost under a gigabyte. Only if that
+proves insufficient is there a design question, and it would be about the
+backends, not the framework: Solr and BaseX have their own pools and will
+saturate before the event loop does.

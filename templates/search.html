@@ -74,10 +74,10 @@
         <input type="hidden" name="q" value="{{ q }}">
         <select name="sort" onchange="this.form.submit()" aria-label="Sort">
           <option value="">Relevance</option>
-          <option value="last_modified" {% if request.args.get('sort') == 'last_modified' %}selected{% endif %}>Recently modified</option>
-          <option value="-last_modified" {% if request.args.get('sort') == '-last_modified' %}selected{% endif %}>Oldest first</option>
+          <option value="last_modified" {% if request.query_params.get('sort') == 'last_modified' %}selected{% endif %}>Recently modified</option>
+          <option value="-last_modified" {% if request.query_params.get('sort') == '-last_modified' %}selected{% endif %}>Oldest first</option>
           {% if module.name == 'Object' %}
-            <option value="object_number_sort" {% if request.args.get('sort') == 'object_number_sort' %}selected{% endif %}>Object number</option>
+            <option value="object_number_sort" {% if request.query_params.get('sort') == 'object_number_sort' %}selected{% endif %}>Object number</option>
           {% endif %}
         </select>
       </form>
@@ -102,13 +102,16 @@
 
       {% if pages > 1 %}
         <nav class="pager">
-          {% set args = request.args.to_dict(flat=False) %}
+          {# Starlette's query_params is an immutable multidict: `multi_items()`
+             gives (key, value) pairs directly, where Flask's `args.to_dict(flat=False)`
+             gave key -> list. Same output, one less nesting level. #}
+          {% set args = request.query_params.multi_items() %}
           {% if page > 1 %}
-            <a href="?{% for k, vs in args.items() if k != 'page' %}{% for v in vs %}{{ k }}={{ v | urlencode }}&{% endfor %}{% endfor %}page={{ page - 1 }}">Previous</a>
+            <a href="?{% for k, v in args if k != 'page' %}{{ k }}={{ v | urlencode }}&{% endfor %}page={{ page - 1 }}">Previous</a>
           {% else %}<span class="disabled">Previous</span>{% endif %}
           <span class="current">Page {{ page }} of {{ pages }}</span>
           {% if page < pages %}
-            <a href="?{% for k, vs in args.items() if k != 'page' %}{% for v in vs %}{{ k }}={{ v | urlencode }}&{% endfor %}{% endfor %}page={{ page + 1 }}">Next</a>
+            <a href="?{% for k, v in args if k != 'page' %}{{ k }}={{ v | urlencode }}&{% endfor %}page={{ page + 1 }}">Next</a>
           {% else %}<span class="disabled">Next</span>{% endif %}
         </nav>
       {% endif %}

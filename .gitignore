@@ -16,3 +16,8 @@ tools/field_inventory.err
 
 # Scratch
 *.log
+
+# Coverage data
+.coverage
+coverage.xml
+htmlcov/

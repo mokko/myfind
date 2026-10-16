@@ -8,12 +8,12 @@ None of those needed a live backend; they needed the page rendered and inspected
 
 from __future__ import annotations
 
-import json
 import re
 
 import pytest
 
 from myfind import app as app_module
+from starlette.testclient import TestClient
 
 from .fakes import FakeBaseX, FakeBaseXDown, FakeSolr, FakeSolrDown
 from .records import REAL_MULTIMEDIA, REAL_OBJECT
@@ -21,16 +21,21 @@ from .records import REAL_MULTIMEDIA, REAL_OBJECT
 
 @pytest.fixture
 def wired(monkeypatch):
-    """An app whose Solr and BaseX are the fakes. Returns (client, solr, basex)."""
+    """An app whose Solr and BaseX are the fakes. Returns (client, solr, basex).
+
+    `TestClient` presents a synchronous interface and drives the ASGI app through
+    a portal, so the tests below stay imperative -- `client.get(...)` -- even
+    though every route and every fake is a coroutine.
+    """
     solr = FakeSolr("http://fake/solr/myfind")
     basex = FakeBaseX()
 
-    monkeypatch.setattr(app_module, "SolrClient", lambda url, **kw: solr)
-    monkeypatch.setattr(app_module, "BaseXClient", lambda **kw: basex)
+    # The app builds its clients with keywords (url=, client=, ...), so the
+    # replacement accepts anything and returns the fake.
+    monkeypatch.setattr(app_module, "AsyncSolrClient", lambda **kw: solr)
+    monkeypatch.setattr(app_module, "AsyncBaseXClient", lambda **kw: basex)
 
-    app = app_module.create_app("myfind.toml")
-    app.config["TESTING"] = True
-    return app.test_client(), solr, basex
+    return TestClient(app_module.create_app("myfind.toml")), solr, basex
 
 
 @pytest.fixture
@@ -73,7 +78,7 @@ def test_an_object_record_page_renders_at_all(loaded):
     client, _, _ = loaded
     resp = client.get("/Object/447469")
     assert resp.status_code == 200
-    body = _text(resp.data.decode())
+    body = _text(resp.text)
     assert "Sitzende junge Frau" in body
     assert "KdZ 5653" in body
     assert "Zeichnung" in body
@@ -94,7 +99,7 @@ def test_an_asset_record_is_headed_by_its_file_name(loaded):
     visibly below the wrong heading.
     """
     client, _, _ = loaded
-    body = _text(client.get("/Multimedia/268711").data.decode())
+    body = _text(client.get("/Multimedia/268711").text)
     assert "20001815-p.jpg" in body
     assert "Untitled record" not in body
 
@@ -108,14 +113,14 @@ def test_an_asset_record_links_to_its_owning_object(loaded):
     because zero links is a valid answer.
     """
     client, _, _ = loaded
-    body = client.get("/Multimedia/268711").data.decode()
+    body = client.get("/Multimedia/268711").text
     assert "/Object/449615" in body
     assert "Objects" in _text(body)
 
 
 def test_a_resolvable_link_becomes_a_link(loaded):
     client, _, _ = loaded
-    body = client.get("/Object/447469").data.decode()
+    body = client.get("/Object/447469").text
     assert 'href="/Person/218316"' in body
 
 
@@ -126,7 +131,7 @@ def test_a_link_whose_target_is_absent_is_marked_not_dropped(loaded):
     holding institution from every record page.
     """
     client, _, _ = loaded
-    body = _text(client.get("/Object/447469").data.decode())
+    body = _text(client.get("/Object/447469").text)
     assert "Kupferstichkabinett, Staatliche Museen zu Berlin" in body
     assert "not in this index" in body
     assert 'href="/Address/112264"' not in body
@@ -169,7 +174,7 @@ def _seed_objects(solr, n=3, total=42):
 def test_a_search_page_lists_results_with_their_fields(wired):
     client, solr, _ = wired
     _seed_objects(solr)
-    body = _text(client.get("/Object/").data.decode())
+    body = _text(client.get("/Object/").text)
     assert "Werk 0" in body
     assert "KdZ 0" in body
     assert "42" in body  # the total, not just the page
@@ -178,7 +183,7 @@ def test_a_search_page_lists_results_with_their_fields(wired):
 def test_facets_are_rendered_with_counts(wired):
     client, solr, _ = wired
     _seed_objects(solr)
-    body = _text(client.get("/Object/").data.decode())
+    body = _text(client.get("/Object/").text)
     assert "Zeichnung" in body
     assert "20520" in body
     assert "Druck" in body
@@ -187,7 +192,7 @@ def test_facets_are_rendered_with_counts(wired):
 def test_an_applied_facet_becomes_a_removable_chip(wired):
     client, solr, _ = wired
     _seed_objects(solr)
-    body = _text(client.get("/Object/?object_type=Zeichnung").data.decode())
+    body = _text(client.get("/Object/?object_type=Zeichnung").text)
     assert "Filtered by" in body
     # The chip removes exactly that value, leaving the rest of the query.
     assert 'class="chip" href="/Object/"' in body.replace("  ", " ")
@@ -225,7 +230,7 @@ def test_the_query_survives_a_facet_click(wired):
     """Losing the search terms when narrowing is what makes a portal feel broken."""
     client, solr, _ = wired
     _seed_objects(solr)
-    body = client.get("/Object/?q=Watteau&object_type=Zeichnung").data.decode()
+    body = client.get("/Object/?q=Watteau&object_type=Zeichnung").text
     assert "q=Watteau" in body
 
 
@@ -247,7 +252,7 @@ def test_a_query_with_no_matches_says_so_rather_than_looking_empty(wired):
     client, solr, _ = wired
     solr.docs = []
     solr.counts = {"Object": 0}
-    body = _text(client.get("/Object/?q=nothingmatchesthis").data.decode())
+    body = _text(client.get("/Object/?q=nothingmatchesthis").text)
     assert "No objects matched" in body
     assert "removing a filter" not in body  # no filters were applied
 
@@ -255,7 +260,7 @@ def test_a_query_with_no_matches_says_so_rather_than_looking_empty(wired):
 def test_pagination_appears_when_there_are_more_pages(wired):
     client, solr, _ = wired
     _seed_objects(solr, n=3, total=42)
-    body = _text(client.get("/Object/").data.decode())
+    body = _text(client.get("/Object/").text)
     assert "Page 1 of 3" in body
     assert "page=2" in body
 
@@ -263,7 +268,7 @@ def test_pagination_appears_when_there_are_more_pages(wired):
 def test_no_pager_when_everything_fits_on_one_page(wired):
     client, solr, _ = wired
     _seed_objects(solr, n=3, total=3)
-    body = _text(client.get("/Object/").data.decode())
+    body = _text(client.get("/Object/").text)
     assert "Page 1 of" not in body
 
 
@@ -276,7 +281,7 @@ def test_the_global_search_page_renders(wired):
 def test_home_lists_each_entity_with_its_count(wired):
     client, solr, _ = wired
     solr.counts = {"Object": 47853, "Person": 5799, "Multimedia": 127551}
-    body = _text(client.get("/").data.decode())
+    body = _text(client.get("/").text)
     assert "47,853" in body
     assert "127,551" in body
 
@@ -289,7 +294,7 @@ def test_the_api_returns_json_and_keeps_limit_out_of_the_filters(wired):
     _seed_objects(solr)
     resp = client.get("/api/Object?q=Watteau&limit=2")
     assert resp.status_code == 200
-    payload = json.loads(resp.data)
+    payload = resp.json()
     assert payload["entity"] == "Object"
     assert payload["numFound"] == 42
     assert "fq" not in solr.last_call() or all(
@@ -305,40 +310,56 @@ def test_the_api_rejects_an_unknown_entity(wired):
 # -- failure modes ---------------------------------------------------------
 
 
+def test_the_stylesheet_is_served_not_swallowed_by_the_record_route(wired):
+    """REGRESSION: the static mount was registered last, so "/static/style.css"
+    matched "/{module_name}/{record_id}" and 404'd as a record with entity
+    "static".
+
+    136 green tests did not notice, because not one of them asks for a static
+    file. Route ORDER is load-bearing in Starlette, which ranks nothing -- unlike
+    Flask, which prefers the more specific rule and cannot be reordered wrong.
+    """
+    client, _, _ = wired
+    resp = client.get("/static/style.css")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/css")
+    assert b"--ink" in resp.content  # a custom property from the stylesheet
+
+
 def test_healthz_reports_both_backends(wired):
     client, _, _ = wired
-    payload = json.loads(client.get("/healthz").data)
+    payload = client.get("/healthz").json()
     assert payload == {"solr": True, "solr_documents": 0, "basex": True}
 
 
 def test_a_solr_that_is_down_gives_503_not_500(monkeypatch):
     """REGRESSION: a Solr that was not *listening* raised httpx.ConnectError
     straight past the handler written for exactly that case."""
-    monkeypatch.setattr(app_module, "SolrClient", lambda url, **kw: FakeSolrDown(url))
-    monkeypatch.setattr(app_module, "BaseXClient", lambda **kw: FakeBaseX())
-    client = app_module.create_app("myfind.toml").test_client()
+    monkeypatch.setattr(app_module, "AsyncSolrClient", lambda **kw: FakeSolrDown("http://x"))
+    monkeypatch.setattr(app_module, "AsyncBaseXClient", lambda **kw: FakeBaseX())
+    client = TestClient(app_module.create_app("myfind.toml"))
 
     resp = client.get("/Object/")
     assert resp.status_code == 503
-    assert b"Solr is not answering" in resp.data
+    assert b"Solr is not answering" in resp.content
 
 
 def test_a_basex_that_is_down_gives_503_not_500(monkeypatch):
-    monkeypatch.setattr(app_module, "SolrClient", lambda url, **kw: FakeSolr(url))
-    monkeypatch.setattr(app_module, "BaseXClient", lambda **kw: FakeBaseXDown())
-    client = app_module.create_app("myfind.toml").test_client()
+    monkeypatch.setattr(app_module, "AsyncSolrClient", lambda **kw: FakeSolr("http://x"))
+    monkeypatch.setattr(app_module, "AsyncBaseXClient", lambda **kw: FakeBaseXDown())
+    client = TestClient(app_module.create_app("myfind.toml"))
 
     resp = client.get("/Object/447469")
     assert resp.status_code == 503
-    assert b"BaseX is not answering" in resp.data
+    assert b"BaseX is not answering" in resp.content
 
 
 def test_a_backend_outage_never_renders_as_an_empty_result_set(monkeypatch):
     """The worst outcome: "no matches" when the truth is "the index is down"."""
-    monkeypatch.setattr(app_module, "SolrClient", lambda url, **kw: FakeSolrDown(url))
-    monkeypatch.setattr(app_module, "BaseXClient", lambda **kw: FakeBaseX())
-    client = app_module.create_app("myfind.toml").test_client()
+    monkeypatch.setattr(app_module, "AsyncSolrClient", lambda **kw: FakeSolrDown("http://x"))
+    monkeypatch.setattr(app_module, "AsyncBaseXClient", lambda **kw: FakeBaseX())
+    client = TestClient(app_module.create_app("myfind.toml"))
 
-    body = _text(client.get("/Object/?q=Watteau").data.decode())
+    body = _text(client.get("/Object/?q=Watteau").text)
     assert "No objects matched" not in body
     assert "not answering" in body
